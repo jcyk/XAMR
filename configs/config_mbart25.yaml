@@ -1,5 +1,5 @@
 name: baseline+smart_init
-model: facebook/bart-large
+model: facebook/mbart-large-cc25
 
 # <--------------
 # Linearizations

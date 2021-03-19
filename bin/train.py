@@ -14,7 +14,7 @@ except ImportError:
 from torch.cuda.amp.grad_scaler import GradScaler
 import transformers
 
-from spring_amr import ROOT
+
 from spring_amr.dataset import reverse_direction
 from spring_amr.optim import RAdam
 from spring_amr.evaluation import write_predictions, compute_smatch, predict_amrs, predict_sentences, compute_bleu
@@ -24,7 +24,7 @@ from ignite.engine import Engine, Events
 from ignite.metrics import RunningAverage
 from ignite.handlers import ModelCheckpoint, global_step_from_engine
 
-def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=False):
+def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=False, ROOT=""):
 
     assert direction in ('amr', 'text', 'both')
 
@@ -392,6 +392,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint', type=str,
         help='Warm-start from a previous fine-tuned checkpoint.')
     parser.add_argument('--fp16', action='store_true')
+    parser.add_argument('--ROOT', type=str)
     args, unknown = parser.parse_known_args()
 
     if args.fp16 and autocast_available:
@@ -405,7 +406,7 @@ if __name__ == '__main__':
             entity="SOME-RUNS",
             project="SOME-PROJECT",
             config=config,
-            dir=str(ROOT / 'runs/'))
+            dir=str(args.ROOT / 'runs/'))
         config = wandb.config
 
     print(config)
@@ -420,4 +421,5 @@ if __name__ == '__main__':
         direction=args.direction,
         split_both_decoder=args.split_both_decoder,
         fp16=args.fp16,
+        ROOT=args.ROOT
     )
