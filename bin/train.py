@@ -42,8 +42,8 @@ def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=Fa
         raw_graph=config.get('raw_graph', False)
     )
 
-    print(model)
-    print(model.config)
+    #print(model)
+    #print(model.config)
 
     if checkpoint is not None:
         print(f'Checkpoint restored ({checkpoint})!')
@@ -92,8 +92,8 @@ def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=Fa
         dereify=config['dereify'],
     )
 
-    dev_gold_path = ROOT / 'data/tmp/dev-gold.txt'
-    dev_pred_path = ROOT / 'data/tmp/dev-pred.txt'
+    dev_gold_path = ROOT / 'tmp-dev-gold.txt'
+    dev_pred_path = ROOT / 'tmp-dev-pred.txt'
     dev_loader = instantiate_loader(
         config['dev'],
         tokenizer,
@@ -387,12 +387,12 @@ if __name__ == '__main__':
     parser.add_argument('--direction', type=str, default='amr', choices=['amr', 'text', 'both'],
         help='Train a uni- (amr, text) or bidirectional (both).')
     parser.add_argument('--split-both-decoder', action='store_true')
-    parser.add_argument('--config', type=Path, default=ROOT/'configs/sweeped.yaml',
+    parser.add_argument('--config', type=Path, default='configs/sweeped.yaml',
         help='Use the following config for hparams.')
     parser.add_argument('--checkpoint', type=str,
         help='Warm-start from a previous fine-tuned checkpoint.')
     parser.add_argument('--fp16', action='store_true')
-    parser.add_argument('--ROOT', type=str)
+    parser.add_argument('--ROOT', type=Path)
     args, unknown = parser.parse_known_args()
 
     if args.fp16 and autocast_available:
@@ -409,6 +409,11 @@ if __name__ == '__main__':
             dir=str(args.ROOT / 'runs/'))
         config = wandb.config
 
+    try:
+        args.ROOT.mkdir()
+    except:
+        pass
+    
     print(config)
 
     if args.checkpoint:
