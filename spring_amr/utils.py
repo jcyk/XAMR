@@ -42,6 +42,7 @@ def instantiate_model_and_tokenizer(
     config.output_attentions = True
     config.dropout = dropout
     config.attention_dropout = attention_dropout
+    config.return_dict = False
 
     if penman_linearization:
         tokenizer = PENMANBartTokenizer.from_pretrained(

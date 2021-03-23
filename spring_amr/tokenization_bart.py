@@ -185,7 +185,7 @@ class AMRBartTokenizer(BartTokenizer):
     def batch_encode_sentences(self, sentences, device=torch.device('cpu')):
         sentences = [s for s in sentences]
         extra = {'sentences': sentences}
-        batch = super().batch_encode_plus(sentences, return_tensors='pt', pad_to_max_length=True)
+        batch = super().batch_encode_plus(sentences, return_tensors='pt', padding="longest") 
         batch = {k: v.to(device) for k, v in batch.items()}
         return batch, extra
     
@@ -221,7 +221,7 @@ class AMRBartTokenizer(BartTokenizer):
             batch.append(token_uni_ids)
         batch = [x + [self.pad_token_id] * (maxlen - len(x)) for x in batch]
         batch = torch.tensor(batch).to(device)
-        batch = {'decoder_input_ids': batch[:, :-1], 'lm_labels': batch[:, 1:]}
+        batch = {'decoder_input_ids': batch[:, :-1], 'labels': batch[:, 1:]}
         return batch, batch_extra
 
     def decode_amr(self, tokens, restore_name_ops=False):

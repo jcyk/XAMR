@@ -6,13 +6,13 @@ from torch.utils.data import Dataset
 from spring_amr.IO import read_raw_amr_data
 
 def reverse_direction(x, y, pad_token_id=1):
-    input_ids = torch.cat([y['decoder_input_ids'], y['lm_labels'][:, -1:]], 1)
+    input_ids = torch.cat([y['decoder_input_ids'], y['labels'][:, -1:]], 1)
     attention_mask = torch.ones_like(input_ids)
     attention_mask[input_ids == pad_token_id] = 0
     decoder_input_ids = x['input_ids'][:,:-1]
-    lm_labels = x['input_ids'][:,1:]
+    labels = x['input_ids'][:,1:]
     x = {'input_ids': input_ids, 'attention_mask': attention_mask}
-    y = {'decoder_input_ids': decoder_input_ids, 'lm_labels': lm_labels}
+    y = {'decoder_input_ids': decoder_input_ids, 'labels': labels}
     return x, y
 
 class AMRDataset(Dataset):
@@ -80,6 +80,8 @@ class AMRDataset(Dataset):
         else:
             y = None
         extra['ids'] = [s['id'] for s in samples]
+        for name in y:
+            y[name] = y[name].contiguous()
         return x, y, extra
     
 class AMRDatasetTokenBatcherAndLoader:

@@ -123,7 +123,7 @@ if __name__ == '__main__':
                 # if bgraphs and args.reverse:
                 #     bgraphs = [x[1] for x in bgraphs]
                 #     x, _ = tokenizer.batch_encode_graphs(bgraphs, device)
-                #     x = torch.cat([x['decoder_input_ids'], x['lm_labels'][:, -1:]], 1)
+                #     x = torch.cat([x['decoder_input_ids'], x['labels'][:, -1:]], 1)
                 #     att = torch.ones_like(x)
                 #     att[att == tokenizer.pad_token_id] = 0
                 #     x = {

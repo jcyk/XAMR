@@ -53,7 +53,11 @@ if __name__ == '__main__':
         raw_graph=args.raw_graph,
     )
     model.amr_mode = True
-    model.load_state_dict(torch.load(args.checkpoint, map_location='cpu')['model'])
+    model_ckpt = torch.load(args.checkpoint, map_location='cpu')['model']
+    for x in ["model.decoder.pointer_k.weight", "model.decoder.pointer_k.bias", "model.decoder.pointer_q.weight", "model.decoder.pointer_q.bias"]:
+        model_ckpt.pop(x)
+    model_ckpt["lm_head.weight"] = model_ckpt["model.shared.weight"]
+    model.load_state_dict(model_ckpt)
     model.to(device)
 
     gold_path = args.gold_path

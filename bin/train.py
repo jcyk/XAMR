@@ -95,10 +95,7 @@ def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=Fa
 
 
     where_checkpoints = root/str(len(list(root.iterdir())))
-    try:
-        where_checkpoints.mkdir()
-    except:
-        pass
+    where_checkpoints.mkdir()
 
     dev_gold_path = where_checkpoints / 'tmp-dev-gold.txt'
     dev_pred_path = where_checkpoints / 'tmp-dev-pred.txt'
@@ -324,13 +321,8 @@ if __name__ == '__main__':
     with args.config.open() as y:
         config = yaml.load(y, Loader=yaml.FullLoader)
 
-
-    try:
-        args.ROOT.mkdir()
-        root = args.ROOT/'runs'
-        root.mkdir()
-    except:
-        pass
+    root = args.ROOT/'runs'
+    args.ROOT.mkdir(parents=True, exist_ok=True) 
     
     print(config)
 
