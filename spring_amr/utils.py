@@ -5,7 +5,6 @@ import torch
 from transformers import AutoConfig
 
 from spring_amr.dataset import AMRDataset, AMRDatasetTokenBatcherAndLoader
-from spring_amr.modeling_bart import AMRBartForConditionalGeneration
 from spring_amr.tokenization_bart import AMRBartTokenizer, PENMANBartTokenizer
 
 
@@ -61,9 +60,9 @@ def instantiate_model_and_tokenizer(
         )
 
     if from_pretrained:
-        model = AMRBartForConditionalGeneration.from_pretrained(name, config=config)
+        model = AutoModelForSeq2SeqLM.from_pretrained(name, config=config)
     else:
-        model = AMRBartForConditionalGeneration(config)
+        model = AutoModelForSeq2SeqLM(config)
 
     model.resize_token_embeddings(len(tokenizer.encoder))
 

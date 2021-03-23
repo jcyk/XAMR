@@ -8,6 +8,13 @@ from spring_amr.evaluation import predict_amrs, compute_smatch
 from spring_amr.penman import encode
 from spring_amr.utils import instantiate_loader, instantiate_model_and_tokenizer
 
+def load_spring_ckpt(model, checkpoint):
+    model_ckpt = torch.load(checkpoint, map_location='cpu')['model']
+    for x in ["model.decoder.pointer_k.weight", "model.decoder.pointer_k.bias", "model.decoder.pointer_q.weight", "model.decoder.pointer_q.bias"]:
+        model_ckpt.pop(x)
+    model_ckpt["lm_head.weight"] = model_ckpt["model.shared.weight"]
+    model.load_state_dict(model_ckpt)
+
 if __name__ == '__main__':
 
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -53,11 +60,8 @@ if __name__ == '__main__':
         raw_graph=args.raw_graph,
     )
     model.amr_mode = True
-    model_ckpt = torch.load(args.checkpoint, map_location='cpu')['model']
-    for x in ["model.decoder.pointer_k.weight", "model.decoder.pointer_k.bias", "model.decoder.pointer_q.weight", "model.decoder.pointer_q.bias"]:
-        model_ckpt.pop(x)
-    model_ckpt["lm_head.weight"] = model_ckpt["model.shared.weight"]
-    model.load_state_dict(model_ckpt)
+    #load_spring_ckpt(model, args.checkpoint)
+    model.load_state_dict(torch.load(args.checkpoint, map_location='cpu')['model'])
     model.to(device)
 
     gold_path = args.gold_path

@@ -5,6 +5,6 @@ pytorch-ignite
 regex
 sacrebleu
 smatch
-transformers==2.11.0
+transformers==4.4.2
 wandb
 PyYAML>=5.1
