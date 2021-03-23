@@ -24,7 +24,7 @@ from ignite.engine import Engine, Events
 from ignite.metrics import RunningAverage
 from ignite.handlers import ModelCheckpoint, global_step_from_engine
 
-def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=False, ROOT=""):
+def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=False, root=""):
 
     assert direction in ('amr', 'text', 'both')
 
@@ -92,8 +92,16 @@ def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=Fa
         dereify=config['dereify'],
     )
 
-    dev_gold_path = ROOT / 'tmp-dev-gold.txt'
-    dev_pred_path = ROOT / 'tmp-dev-pred.txt'
+
+
+    where_checkpoints = root/str(len(list(root.iterdir())))
+    try:
+        where_checkpoints.mkdir()
+    except:
+        pass
+
+    dev_gold_path = where_checkpoints / 'tmp-dev-gold.txt'
+    dev_pred_path = where_checkpoints / 'tmp-dev-pred.txt'
     dev_loader = instantiate_loader(
         config['dev'],
         tokenizer,
@@ -255,75 +263,6 @@ def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=Fa
         RunningAverage(output_transform=lambda out: out[0]).attach(evaluator, 'dev_amr_loss')
         RunningAverage(output_transform=lambda out: out[1]).attach(evaluator, 'dev_text_loss')
 
-
-    if config['log_wandb']:
-        from ignite.contrib.handlers.wandb_logger import WandBLogger
-        wandb_logger = WandBLogger(init=False)
-
-        if direction == 'amr':
-            wandb_logger.attach_output_handler(
-                trainer,
-                event_name=Events.ITERATION_COMPLETED,
-                tag="iterations/trn_amr_loss",
-                output_transform=lambda loss: loss
-            )
-        elif direction == 'text':
-            wandb_logger.attach_output_handler(
-                trainer,
-                event_name=Events.ITERATION_COMPLETED,
-                tag="iterations/trn_text_loss",
-                output_transform=lambda loss: loss
-            )
-        if direction == 'both':
-            wandb_logger.attach_output_handler(
-                trainer,
-                event_name=Events.ITERATION_COMPLETED,
-                tag="iterations/trn_amr_loss",
-                output_transform=lambda loss: loss[0]
-            )
-            wandb_logger.attach_output_handler(
-                trainer,
-                event_name=Events.ITERATION_COMPLETED,
-                tag="iterations/trn_text_loss",
-                output_transform=lambda loss: loss[1]
-            )
-
-        if direction == 'amr':
-            metric_names_trn = ['trn_amr_loss']
-            metric_names_dev = ['dev_amr_loss']
-            if not config['best_loss']:
-                metric_names_dev.append('dev_smatch')
-        elif direction == 'text':
-            metric_names_trn = ['trn_text_loss']
-            metric_names_dev = ['dev_text_loss']
-            if not config['best_loss']:
-                metric_names_dev.append('dev_bleu')
-        elif direction == 'both':
-            metric_names_trn = ['trn_amr_loss', 'trn_text_loss']
-            metric_names_dev = ['dev_amr_loss', 'dev_smatch']
-            if not config['best_loss']:
-                metric_names_dev.extend(['dev_text_loss', 'dev_bleu'])
-
-        wandb_logger.attach_output_handler(
-            trainer,
-            event_name=Events.EPOCH_COMPLETED,
-            tag="epochs",
-            metric_names=metric_names_trn,
-            global_step_transform=lambda *_: trainer.state.iteration,
-        )
-
-        wandb_logger.attach_output_handler(
-            evaluator,
-            event_name=Events.EPOCH_COMPLETED,
-            tag="epochs",
-            metric_names=metric_names_dev,
-            global_step_transform=lambda *_: trainer.state.iteration,
-        )
-
-        @trainer.on(Events.ITERATION_COMPLETED)
-        def wandb_log_lr(engine):
-            wandb.log({'lr': scheduler.get_last_lr()[0]}, step=engine.state.iteration)
-
     if config['save_checkpoints']:
 
         if direction in ('amr', 'both'):
@@ -342,22 +281,8 @@ def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=Fa
                 score_function = lambda x: evaluator.state.metrics['dev_bleu']
 
         to_save = {'model': model, 'optimizer': optimizer}
-        if config['log_wandb']:
-            where_checkpoints = str(wandb_logger.run.dir)
-        else:
-            root = ROOT/'runs'
-            try:
-                root.mkdir()
-            except:
-                pass
-            where_checkpoints = root/str(len(list(root.iterdir())))
-            try:
-                where_checkpoints.mkdir()
-            except:
-                pass
-            where_checkpoints = str(where_checkpoints)
+        where_checkpoints = str(where_checkpoints)
 
-        print(where_checkpoints)
         handler = ModelCheckpoint(
             where_checkpoints,
             prefix,
@@ -377,8 +302,6 @@ if __name__ == '__main__':
 
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import yaml
-
-    import wandb
 
     parser = ArgumentParser(
         description="Trainer script",
@@ -401,16 +324,11 @@ if __name__ == '__main__':
     with args.config.open() as y:
         config = yaml.load(y, Loader=yaml.FullLoader)
 
-    if config['log_wandb']:
-        wandb.init(
-            entity="SOME-RUNS",
-            project="SOME-PROJECT",
-            config=config,
-            dir=str(args.ROOT / 'runs/'))
-        config = wandb.config
 
     try:
         args.ROOT.mkdir()
+        root = args.ROOT/'runs'
+        root.mkdir()
     except:
         pass
     
@@ -426,5 +344,5 @@ if __name__ == '__main__':
         direction=args.direction,
         split_both_decoder=args.split_both_decoder,
         fp16=args.fp16,
-        ROOT=args.ROOT
+        root=root
     )

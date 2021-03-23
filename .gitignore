@@ -124,3 +124,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .DS_Store
+abstract_meaning_representation_amr_2.0/*
+train.txt
+*.ipynb
