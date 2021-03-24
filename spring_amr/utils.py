@@ -2,7 +2,7 @@ from glob import glob
 from pathlib import Path
 
 import torch
-from transformers import AutoConfig
+from transformers import AutoConfig, AutoModelForSeq2SeqLM
 
 from spring_amr.dataset import AMRDataset, AMRDatasetTokenBatcherAndLoader
 from spring_amr.tokenization_bart import AMRBartTokenizer, PENMANBartTokenizer
@@ -29,11 +29,6 @@ def instantiate_model_and_tokenizer(
     if name is None:
         name = 'facebook/bart-large'
 
-    if name == 'facebook/bart-base':
-        tokenizer_name = 'facebook/bart-large'
-    else:
-        tokenizer_name = name
-
     config = AutoConfig.from_pretrained(name)
     config.output_past = False
     config.no_repeat_ngram_size = 0
@@ -45,30 +40,29 @@ def instantiate_model_and_tokenizer(
 
     if penman_linearization:
         tokenizer = PENMANBartTokenizer.from_pretrained(
-            tokenizer_name,
+            name,
             collapse_name_ops=collapse_name_ops,
             use_pointer_tokens=use_pointer_tokens,
             raw_graph=raw_graph,
-            config=config,
         )
     else:
         tokenizer = AMRBartTokenizer.from_pretrained(
-            tokenizer_name,
+            name,
             collapse_name_ops=collapse_name_ops,
             use_pointer_tokens=use_pointer_tokens,
-            config=config,
         )
 
     if from_pretrained:
         model = AutoModelForSeq2SeqLM.from_pretrained(name, config=config)
     else:
-        model = AutoModelForSeq2SeqLM(config)
+        model = AutoModelForSeq2SeqLM.from_config(config)
 
-    model.resize_token_embeddings(len(tokenizer.encoder))
+    model.resize_token_embeddings(tokenizer.vocab_size)
 
     if additional_tokens_smart_init:
         modified = 0
-        for tok, idx in tokenizer.encoder.items():
+        vocab = tokenizer.get_vocab()
+        for tok, idx in vocab.items():
             tok = tok.lstrip(tokenizer.INIT)
 
             if idx < tokenizer.old_enc_size:
@@ -104,14 +98,14 @@ def instantiate_model_and_tokenizer(
             tok_split = []
             for s in tok_split_:
                 s_ = s + tokenizer.INIT
-                if s_ in tokenizer.encoder:
+                if s_ in vocab:
                     tok_split.append(s_)
                 else:
                     tok_split.extend(tokenizer._tok_bpe(s))
 
             vecs = []
             for s in tok_split:
-                idx_split = tokenizer.encoder.get(s, -1)
+                idx_split = vocab.get(s, -1)
                 if idx_split > -1:
                     vec_split = model.model.shared.weight.data[idx_split].clone()
                     vecs.append(vec_split)
@@ -122,9 +116,6 @@ def instantiate_model_and_tokenizer(
                 noise.uniform_(-0.1, +0.1)
                 model.model.shared.weight.data[idx] = vec + noise
                 modified += 1
-
-    if init_reverse:
-        model.init_reverse_model()
 
     if checkpoint is not None:
         model.load_state_dict(torch.load(checkpoint, map_location='cpu')['model'])

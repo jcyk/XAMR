@@ -82,6 +82,10 @@ class AMRBartTokenizer(BartTokenizer):
         self.eos_token = self.INIT + '</s>'
         self.unk_token = self.INIT + '<unk>'
 
+    @property
+    def vocab_size(self) -> int:
+       return len(tokenizer.encoder)
+
     def build_inputs_with_special_tokens(self, token_ids_0, token_ids_1=None):
         output = [self.bos_token_id] + token_ids_0 + [self.eos_token_id]
         if token_ids_1 is None:
