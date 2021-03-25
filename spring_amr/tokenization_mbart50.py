@@ -20,7 +20,6 @@ from transformers.models.mbart.tokenization_mbart50 import MBart50Tokenizer, SPI
 class AMRMBart50Tokenizer(MBart50Tokenizer):
 
     INIT = SPIECE_UNDERLINE
-    AMR_LANGUAGE_CODE = "AMR_amr"
     ADDITIONAL = [
         AMRTokens.PNTR_N,
         AMRTokens.STOP_N,
@@ -80,13 +79,7 @@ class AMRMBart50Tokenizer(MBart50Tokenizer):
             if t not in self.fairseq_tokens_to_ids:
                 self.fairseq_tokens_to_ids[t] = enc_size
                 enc_size += 1
-        
-        self.amr_lang_id = enc_size
-        self.lang_code_to_id[self.AMR_LANGUAGE_CODE] = self.amr_lang_id
-        self.id_to_lang_code[self.amr_lang_id] = self.AMR_LANGUAGE_CODE
 
-        self.fairseq_tokens_to_ids[self.AMR_LANGUAGE_CODE] = self.amr_lang_id
-        
         self.fairseq_ids_to_tokens = {v: k for k, v in self.fairseq_tokens_to_ids.items()}
         self._additional_special_tokens = list(self.lang_code_to_id.keys())
         
@@ -211,9 +204,6 @@ class AMRMBart50Tokenizer(MBart50Tokenizer):
                 else:
                     bpe_toks = self._tok_bpe(tokk, add_space=True)
 
-            if i == 0: # change it to self.AMR_LANGUAGE_CODE
-                bpe_toks = [self.AMR_LANGUAGE_CODE]
-
             bpe_tokens.append(bpe_toks)
 
             if i == backr:
@@ -223,9 +213,9 @@ class AMRMBart50Tokenizer(MBart50Tokenizer):
             else:
                 bpe_backreferences.append(bpe_backreferences[backr][0:1])
                 counter += 1            
-        bpe_tokens = [b for bb in bpe_tokens for b in bb]
+        bpe_tokens = [self.eos_token] + [b for bb in bpe_tokens for b in bb]
         bpe_token_ids = [self._convert_token_to_id(b) for b in bpe_tokens]
-        bpe_backreferences = [b for bb in bpe_backreferences for b in bb]
+        bpe_backreferences = [0] + [b+1 for bb in bpe_backreferences for b in bb]
         return bpe_tokens, bpe_token_ids, bpe_backreferences
 
     def batch_encode_sentences(self, sentences, device=torch.device('cpu')):
@@ -334,7 +324,7 @@ class PENMANMBart50Tokenizer(AMRMBart50Tokenizer):
             graph_.metadata = {}
             linearized = penman.encode(graph_)
             linearized = re.sub(r"\s+", ' ', linearized)
-            bpe_tokens = [self.AMR_LANGUAGE_CODE] + self._tokenize(linearized)[:1022]
+            bpe_tokens = [self.eos_token, self.bos_token] + self._tokenize(linearized)[:1022]
             bpe_token_ids = [self.encoder.get(b, self.unk_token_id) for b in bpe_tokens]
             bpe_backreferences = list(range(len(bpe_token_ids)))
             return bpe_tokens, bpe_token_ids, bpe_backreferences

@@ -33,9 +33,10 @@ def predict_amrs(
                     out = model.generate(
                         **x,
                         max_length=1024,
-                        decoder_start_token_id=0,
+                        forced_bos_token_id=0,
                         num_beams=beam_size,
                         num_return_sequences=beam_size)
+                    out = out[:,1:]
                 nseq = len(ii)
                 for i1 in range(0, out.size(0), beam_size):
                     tokens_same_source = []
