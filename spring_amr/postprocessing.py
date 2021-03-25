@@ -87,7 +87,7 @@ def decode_into_node_and_backreferences(subtoken_ids, tokenizer):
         # in any other case attach to the previous
         else:
             tokens[-1] = tokens[-1] + subtok
-
+    
     # strip INIT and fix byte-level
     tokens = [tokenizer.convert_tokens_to_string(list(t)).lstrip() if isinstance(t, str) else t for t in tokens]
     # tokens = [t.replace(tokenizer.INIT, '') if isinstance(t, str) else t for t in tokens]

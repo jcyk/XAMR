@@ -6,7 +6,7 @@ from transformers import AutoConfig, AutoModelForSeq2SeqLM
 
 from spring_amr.dataset import AMRDataset, AMRDatasetTokenBatcherAndLoader
 from spring_amr.tokenization_bart import AMRBartTokenizer, PENMANBartTokenizer
-
+from spring_amr.tokenization_mbart50 import AMRMBart50Tokenizer, PENMANMBart50Tokenizer
 
 def instantiate_model_and_tokenizer(
         name=None,
@@ -29,6 +29,11 @@ def instantiate_model_and_tokenizer(
     if name is None:
         name = 'facebook/bart-large'
 
+    if name.startswith('facebook/mbart'):
+        AMRTokenizer, PENMANTokenizer = AMRMBart50Tokenizer, PENMANMBart50Tokenizer
+    else:
+        AMRTokenizer, PENMANTokenizer = AMRBartTokenizer, PENMANBartTokenizer
+    
     config = AutoConfig.from_pretrained(name)
     config.output_past = False
     config.no_repeat_ngram_size = 0
@@ -39,14 +44,14 @@ def instantiate_model_and_tokenizer(
     config.return_dict = False
 
     if penman_linearization:
-        tokenizer = PENMANBartTokenizer.from_pretrained(
+        tokenizer = PENMANTokenizer.from_pretrained(
             name,
             collapse_name_ops=collapse_name_ops,
             use_pointer_tokens=use_pointer_tokens,
             raw_graph=raw_graph,
         )
     else:
-        tokenizer = AMRBartTokenizer.from_pretrained(
+        tokenizer = AMRTokenizer.from_pretrained(
             name,
             collapse_name_ops=collapse_name_ops,
             use_pointer_tokens=use_pointer_tokens,
