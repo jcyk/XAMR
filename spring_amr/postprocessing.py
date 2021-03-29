@@ -34,9 +34,9 @@ def decode_into_node_and_backreferences(subtoken_ids, tokenizer):
     rex_spc = re.compile(r"<(s|/s|lit|/lit|stop|unk|pad|mask)>")
 
     # get strings
-    subtokens = [tokenizer.decoder.get(t) for t in subtoken_ids]
+    subtokens = [tokenizer.convert_ids_to_tokens(t) for t in subtoken_ids]
     # fix backreferences
-    subtoken_backreferences = [max(t - len(tokenizer.encoder), -1) for t in subtoken_ids]
+    subtoken_backreferences = [max(t - tokenizer.vocab_size, -1) for t in subtoken_ids]
     # strip padding
     subtokens, subtoken_backreferences = zip(
         *[(s, b) for s, b in zip(subtokens, subtoken_backreferences) if s != (tokenizer.INIT + '<pad>')])

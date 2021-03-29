@@ -48,22 +48,11 @@ def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=Fa
     if checkpoint is not None:
         print(f'Checkpoint restored ({checkpoint})!')
 
-    if direction == 'both' and split_both_decoder:
-        params_dir_enc = list(model.model.encoder.parameters())
-        params_dir_enc_check = {id(p) for p in params_dir_enc}
-        params_dir_dec = set()
-        params_dir_dec |= {p for p in model.model.decoder.parameters() if id(p) not in params_dir_enc_check}
-        params_dir_dec |= {p for p in model.rev.model.decoder.parameters() if id(p) not in params_dir_enc_check}
-        params_dir_dec = list(params_dir_dec)
-        optimizer = RAdam(
-            [{'params': params_dir_enc, 'lr': config['learning_rate']},
-             {'params': params_dir_dec, 'lr': config['learning_rate'] * 2},],
-            weight_decay=config['weight_decay'])
-    else:
-        optimizer = RAdam(
-            model.parameters(),
-            lr=config['learning_rate'],
-            weight_decay=config['weight_decay'])
+    
+    optimizer = RAdam(
+        model.parameters(),
+        lr=config['learning_rate'],
+        weight_decay=config['weight_decay'])
     if checkpoint is not None:
         optimizer.load_state_dict(torch.load(checkpoint)['optimizer'])
 
@@ -128,55 +117,6 @@ def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=Fa
             loss, *_ = model(**x, **y)
             return loss.item()
 
-    elif direction == 'text':
-
-        def train_step(engine, batch):
-            model.train()
-            x, y, extra = batch
-            x, y = reverse_direction(x, y)
-            model.rev.amr_mode = False
-            with autocast(enabled=fp16):
-                loss, *_ = model.rev(**x, **y)
-            scaler.scale((loss / config['accum_steps'])).backward()
-            return loss.item()
-
-        @torch.no_grad()
-        def eval_step(engine, batch):
-            model.eval()
-            x, y, extra = batch
-            x, y = reverse_direction(x, y)
-            model.rev.amr_mode = False
-            loss, *_ = model(**x, **y)
-            return loss.item()
-
-    elif direction == 'both':
-
-        def train_step(engine, batch):
-            model.train()
-            x, y, extra = batch
-            model.amr_mode = True
-            with autocast(enabled=fp16):
-                loss1, *_ = model(**x, **y)
-            scaler.scale((loss1 / config['accum_steps'] * 0.5)).backward()
-            loss1 = loss1.item()
-            x, y = reverse_direction(x, y)
-            model.rev.amr_mode = False
-            with autocast(enabled=fp16):
-                loss2, *_ = model.rev(**x, **y)
-            scaler.scale((loss2 / config['accum_steps'] * 0.5)).backward()
-            return loss1, loss2.item()
-
-        @torch.no_grad()
-        def eval_step(engine, batch):
-            model.eval()
-            x, y, extra = batch
-            model.amr_mode = True
-            loss1, *_ = model(**x, **y)
-            x, y = reverse_direction(x, y)
-            model.rev.amr_mode = False
-            loss2, *_ = model.rev(**x, **y)
-            return loss1.item(), loss2.item()
-
     else:
         raise ValueError
 
@@ -213,7 +153,7 @@ def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=Fa
         evaluator.run(dev_loader)
 
     if not config['best_loss']:
-        if direction in ('amr', 'both'):
+        if direction == 'amr':
             @evaluator.on(Events.EPOCH_COMPLETED)
             def smatch_eval(engine):
                 device = next(model.parameters()).device
@@ -225,15 +165,6 @@ def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=Fa
                 except:
                     smatch = 0.
                 engine.state.metrics['dev_smatch'] = smatch
-
-        if direction in ('text', 'both'):
-            @evaluator.on(Events.EPOCH_COMPLETED)
-            def smatch_eval(engine):
-                device = next(model.parameters()).device
-                dev_loader.device = device
-                pred_sentences = predict_sentences(dev_loader, model.rev, tokenizer, beam_size=config['beam_size'])
-                bleu = compute_bleu(dev_loader.dataset.sentences, pred_sentences)
-                engine.state.metrics['dev_bleu'] = bleu.score
 
     @evaluator.on(Events.EPOCH_COMPLETED)
     def log_dev_loss(engine):
@@ -251,31 +182,16 @@ def do_train(checkpoint=None, direction='amr', split_both_decoder=False, fp16=Fa
     if direction == 'amr':
         RunningAverage(output_transform=lambda out: out).attach(trainer, 'trn_amr_loss')
         RunningAverage(output_transform=lambda out: out).attach(evaluator, 'dev_amr_loss')
-    elif direction == 'text':
-        RunningAverage(output_transform=lambda out: out).attach(trainer, 'trn_text_loss')
-        RunningAverage(output_transform=lambda out: out).attach(evaluator, 'dev_text_loss')
-    elif direction == 'both':
-        RunningAverage(output_transform=lambda out: out[0]).attach(trainer, 'trn_amr_loss')
-        RunningAverage(output_transform=lambda out: out[1]).attach(trainer, 'trn_text_loss')
-        RunningAverage(output_transform=lambda out: out[0]).attach(evaluator, 'dev_amr_loss')
-        RunningAverage(output_transform=lambda out: out[1]).attach(evaluator, 'dev_text_loss')
-
+    
     if config['save_checkpoints']:
 
-        if direction in ('amr', 'both'):
+        if direction  == 'amr':
             if config['best_loss']:
                 prefix = 'best-loss-amr'
                 score_function = lambda x: 1 / evaluator.state.metrics['dev_amr_loss']
             else:
                 prefix = 'best-smatch'
                 score_function = lambda x: evaluator.state.metrics['dev_smatch']
-        else:
-            if config['best_loss']:
-                prefix = 'best-loss-text'
-                score_function = lambda x: 1 / evaluator.state.metrics['dev_amr_loss']
-            else:
-                prefix = 'best-bleu'
-                score_function = lambda x: evaluator.state.metrics['dev_bleu']
 
         to_save = {'model': model, 'optimizer': optimizer}
         where_checkpoints = str(where_checkpoints)
@@ -322,7 +238,7 @@ if __name__ == '__main__':
         config = yaml.load(y, Loader=yaml.FullLoader)
 
     root = args.ROOT/'runs'
-    args.ROOT.mkdir(parents=True, exist_ok=True) 
+    root.mkdir(parents=True, exist_ok=True)
     
     print(config)
 

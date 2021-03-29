@@ -181,9 +181,9 @@ class AMRBartTokenizer(BartTokenizer):
             else:
                 bpe_backreferences.append(bpe_backreferences[backr][0:1])
                 counter += 1               
-        bpe_tokens = [self.eos_token] + [b for bb in bpe_tokens for b in bb]
+        bpe_tokens = [b for bb in bpe_tokens for b in bb]
         bpe_token_ids = [self.encoder.get(b, self.unk_token_id) for b in bpe_tokens]
-        bpe_backreferences = [0] + [b+1 for bb in bpe_backreferences for b in bb]
+        bpe_backreferences = [b for bb in bpe_backreferences for b in bb]
         return bpe_tokens, bpe_token_ids, bpe_backreferences
 
     def batch_encode_sentences(self, sentences, device=torch.device('cpu')):
@@ -292,7 +292,7 @@ class PENMANBartTokenizer(AMRBartTokenizer):
             graph_.metadata = {}
             linearized = penman.encode(graph_)
             linearized = re.sub(r"\s+", ' ', linearized)
-            bpe_tokens = [self.eos_token, self.bos_token] + self._tokenize(linearized)[:1022]
+            bpe_tokens = [self.bos_token] + self._tokenize(linearized)[:1022]
             bpe_token_ids = [self.encoder.get(b, self.unk_token_id) for b in bpe_tokens]
             bpe_backreferences = list(range(len(bpe_token_ids)))
             return bpe_tokens, bpe_token_ids, bpe_backreferences

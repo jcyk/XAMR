@@ -6,7 +6,7 @@ from sacrebleu import corpus_bleu
 import torch
 from tqdm import tqdm
 import smatch
-
+from spring_amr.tokenization_bart import AMRBartTokenizer, PENMANBartTokenizer
 from spring_amr.dataset import reverse_direction
 
 def predict_amrs(
@@ -22,6 +22,7 @@ def predict_amrs(
     model.eval()
     model.amr_mode = True
 
+    is_bart = isinstance(tokenizer, AMRBartTokenizer) or isinstance(tokenizer, PENMANBartTokenizer) 
     if tokens is None:
         ids = []
         tokens = []
@@ -30,13 +31,21 @@ def predict_amrs(
                 ii = extra['ids']
                 ids.extend(ii)
                 with torch.no_grad():
-                    out = model.generate(
+                    if is_bart:
+                        out = model.generate(
+                        **x,
+                        max_length=1024,
+                        decoder_start_token_id=0,
+                        num_beams=beam_size,
+                        num_return_sequences=beam_size)
+                    else:
+                        out = model.generate(
                         **x,
                         max_length=1024,
                         forced_bos_token_id=0,
                         num_beams=beam_size,
                         num_return_sequences=beam_size)
-                    out = out[:,1:]
+                        out = out[:,1:]
                 nseq = len(ii)
                 for i1 in range(0, out.size(0), beam_size):
                     tokens_same_source = []
