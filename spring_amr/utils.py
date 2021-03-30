@@ -138,12 +138,16 @@ def instantiate_loader(
         remove_longer_than=None,
         remove_wiki=False,
         dereify=True,
+        rank=0,
+        world_size=1
 ):
     paths = []
     if isinstance(glob_pattn, str) or isinstance(glob_pattn, Path):
         glob_pattn = [glob_pattn]
     for gpattn in glob_pattn:
         paths += [Path(p) for p in glob(gpattn)]
+
+    paths.sort()
     if evaluation:
         assert out is not None
         Path(out).write_text(
@@ -155,6 +159,8 @@ def instantiate_loader(
         remove_longer_than=remove_longer_than,
         remove_wiki=remove_wiki,
         dereify=dereify,
+        rank=rank,
+        world_size=world_size
     )
     loader = AMRDatasetTokenBatcherAndLoader(
         dataset,

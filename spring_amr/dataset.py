@@ -26,11 +26,14 @@ class AMRDataset(Dataset):
         remove_longer_than=None,
         remove_wiki=False,
         dereify=True,
+        rank=0,
+        world_size=1
     ):
         self.paths = paths
         self.tokenizer = tokenizer
         self.device = device
         graphs = read_raw_amr_data(paths, use_recategorization, remove_wiki=remove_wiki, dereify=dereify)
+        graphs = graphs[rank::world_size]
         self.graphs = []
         self.sentences = []
         self.linearized = []

@@ -2,11 +2,13 @@ from pathlib import Path
 
 import penman
 import torch
+import ignite.distributed as idist
 
 from spring_amr import ROOT
 from spring_amr.evaluation import predict_amrs, compute_smatch
 from spring_amr.penman import encode
 from spring_amr.utils import instantiate_loader, instantiate_model_and_tokenizer
+from ignite.utils import setup_logger
 
 def load_spring_ckpt(model, checkpoint):
     model_ckpt = torch.load(checkpoint, map_location='cpu')['model']
@@ -14,6 +16,70 @@ def load_spring_ckpt(model, checkpoint):
         model_ckpt.pop(x)
     model_ckpt["lm_head.weight"] = model_ckpt["model.shared.weight"]
     model.load_state_dict(model_ckpt)
+
+def run(local_rank, args):
+    rank = idist.get_rank()
+    world_size = idist.get_world_size()
+    device = idist.device()
+    logger = setup_logger(name="Training", distributed_rank=local_rank)
+
+    logger.info(f"\nrank:{rank}\tworld_size:{world_size}\tbackend: {idist.backend()}\n")
+
+    model, tokenizer = instantiate_model_and_tokenizer(
+        args.model,
+        dropout=0.,
+        attention_dropout=0.,
+        penman_linearization=args.penman_linearization,
+        use_pointer_tokens=args.use_pointer_tokens,
+        raw_graph=args.raw_graph,
+    )
+
+    #load_spring_ckpt(model, args.checkpoint)
+    model.load_state_dict(torch.load(args.checkpoint, map_location='cpu')['model'])
+    model.to(device)
+
+    gold_path = args.gold_path + rank
+    pred_path = args.pred_path + rank
+    loader = instantiate_loader(
+        args.datasets,
+        tokenizer,
+        batch_size=args.batch_size,
+        evaluation=True, out=gold_path,
+        use_recategorization=args.use_recategorization,
+        rank=rank,
+        world_size=world_size
+    )
+    loader.device = device
+
+    graphs = predict_amrs(
+        loader,
+        model,
+        tokenizer,
+        beam_size=args.beam_size,
+        restore_name_ops=args.restore_name_ops,
+        return_all=args.return_all,
+    )
+    if args.return_all:
+        graphs = [g for gg in graphs for g in gg]
+
+    pieces = [encode(g) for g in graphs]
+    pred_path.write_text('\n\n'.join(pieces))
+
+    idist.barrier()
+    if rank != 0:
+        return
+    gold_pieces = []
+    pred_pieces = []
+    for rk in world_size:
+        gold_path = args.gold_path + rk
+        gold_pieces.append(gold_path.open().read())
+        pred_path = args.pred_path + rk
+        pred_pieces.append(pred_path.open().read())
+    args.gold_path.write_text('\n\n'.join(gold_pieces))
+    args.pred_path.write_text('\n\n'.join(pred_path))
+    if not args.return_all:
+        score = compute_smatch(args.gold_path, args.pred_path)
+        print(f'Smatch: {score:.3f}')
 
 if __name__ == '__main__':
 
@@ -33,8 +99,6 @@ if __name__ == '__main__':
         help="Beam size.")
     parser.add_argument('--batch-size', type=int, default=1000,
         help="Batch size (as number of linearized graph tokens per batch).")
-    parser.add_argument('--device', type=str, default='cuda',
-        help="Device. 'cpu', 'cuda', 'cuda:<n>'.")
     parser.add_argument('--pred-path', type=Path, default=ROOT / 'data/tmp/inf-pred.txt',
         help="Where to write predictions.")
     parser.add_argument('--gold-path', type=Path, default=ROOT / 'data/tmp/inf-gold.txt',
@@ -47,48 +111,8 @@ if __name__ == '__main__':
     parser.add_argument('--raw-graph', action='store_true')
     parser.add_argument('--restore-name-ops', action='store_true')
     parser.add_argument('--return-all', action='store_true')
+    parser.add_argument('--nproc_per_node', type=int, default=2)
 
-    args = parser.parse_args()
+    with idist.Parallel(backend="nccl", nproc_per_node=args.nproc_per_node) as parallel:
+        parallel.run(run, args)
 
-    device = torch.device(args.device)
-    model, tokenizer = instantiate_model_and_tokenizer(
-        args.model,
-        dropout=0.,
-        attention_dropout=0.,
-        penman_linearization=args.penman_linearization,
-        use_pointer_tokens=args.use_pointer_tokens,
-        raw_graph=args.raw_graph,
-    )
-    model.amr_mode = True
-    #load_spring_ckpt(model, args.checkpoint)
-    model.load_state_dict(torch.load(args.checkpoint, map_location='cpu')['model'])
-    model.to(device)
-
-    gold_path = args.gold_path
-    pred_path = args.pred_path
-    loader = instantiate_loader(
-        args.datasets,
-        tokenizer,
-        batch_size=args.batch_size,
-        evaluation=True, out=gold_path,
-        use_recategorization=args.use_recategorization,
-    )
-    loader.device = device
-
-    graphs = predict_amrs(
-        loader,
-        model,
-        tokenizer,
-        beam_size=args.beam_size,
-        restore_name_ops=args.restore_name_ops,
-        return_all=args.return_all,
-    )
-    if args.return_all:
-        graphs = [g for gg in graphs for g in gg]
-
-    pieces = [encode(g) for g in graphs]
-    pred_path.write_text('\n\n'.join(pieces))
-
-    if not args.return_all:
-        score = compute_smatch(gold_path, pred_path)
-        print(f'Smatch: {score:.3f}')
