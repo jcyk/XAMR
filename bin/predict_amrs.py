@@ -21,9 +21,6 @@ def run(local_rank, args):
     rank = idist.get_rank()
     world_size = idist.get_world_size()
     device = idist.device()
-    logger = setup_logger(name="Training", distributed_rank=local_rank)
-
-    logger.info(f"\nrank:{rank}\tworld_size:{world_size}\tbackend: {idist.backend()}\n")
 
     model, tokenizer = instantiate_model_and_tokenizer(
         args.model,
@@ -38,8 +35,8 @@ def run(local_rank, args):
     model.load_state_dict(torch.load(args.checkpoint, map_location='cpu')['model'])
     model.to(device)
 
-    gold_path = args.gold_path + rank
-    pred_path = args.pred_path + rank
+    gold_path = args.gold_path
+    pred_path = Path(str(args.pred_path) + str(rank))
     loader = instantiate_loader(
         args.datasets,
         tokenizer,
@@ -68,15 +65,16 @@ def run(local_rank, args):
     idist.barrier()
     if rank != 0:
         return
-    gold_pieces = []
+
     pred_pieces = []
-    for rk in world_size:
-        gold_path = args.gold_path + rk
-        gold_pieces.append(gold_path.open().read())
-        pred_path = args.pred_path + rk
-        pred_pieces.append(pred_path.open().read())
-    args.gold_path.write_text('\n\n'.join(gold_pieces))
-    args.pred_path.write_text('\n\n'.join(pred_path))
+    tot = 0
+    for rk in range(world_size):
+        pred_path = Path(str(args.pred_path) + str(rk))
+        pred_pieces.append(pred_path.open().read().split('\n\n'))
+        tot += len(pred_pieces[-1])
+        pred_path.unlink()
+    pieces = [ pred_pieces[i%world_size][i//world_size] for i in range(tot) ]
+    args.pred_path.write_text('\n\n'.join(pieces))
     if not args.return_all:
         score = compute_smatch(args.gold_path, args.pred_path)
         print(f'Smatch: {score:.3f}')
@@ -113,6 +111,7 @@ if __name__ == '__main__':
     parser.add_argument('--return-all', action='store_true')
     parser.add_argument('--nproc_per_node', type=int, default=2)
 
+    args = parser.parse_args()
     with idist.Parallel(backend="nccl", nproc_per_node=args.nproc_per_node) as parallel:
         parallel.run(run, args)
 

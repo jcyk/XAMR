@@ -15,7 +15,6 @@ def instantiate_model_and_tokenizer(
         dropout = 0.15,
         attention_dropout = 0.15,
         from_pretrained = True,
-        init_reverse = False,
         collapse_name_ops = False,
         penman_linearization = False,
         use_pointer_tokens = False,
@@ -148,8 +147,7 @@ def instantiate_loader(
         paths += [Path(p) for p in glob(gpattn)]
 
     paths.sort()
-    if evaluation:
-        assert out is not None
+    if out is not None:
         Path(out).write_text(
             '\n\n'.join([p.read_text() for p in paths]))
     dataset = AMRDataset(
