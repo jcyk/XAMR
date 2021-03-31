@@ -109,7 +109,7 @@ if __name__ == '__main__':
     parser.add_argument('--raw-graph', action='store_true')
     parser.add_argument('--restore-name-ops', action='store_true')
     parser.add_argument('--return-all', action='store_true')
-    parser.add_argument('--nproc_per_node', type=int, default=2)
+    parser.add_argument('--nproc-per-node', type=int, default=2)
 
     args = parser.parse_args()
     with idist.Parallel(backend="nccl", nproc_per_node=args.nproc_per_node) as parallel:

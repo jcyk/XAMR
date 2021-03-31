@@ -43,11 +43,8 @@ def do_train(local_rank, args, config):
     logger = setup_logger(name="Training")
     logger.info(config)
 
-    if args.checkpoint:
-        checkpoint = args.checkpoint
-    else:
-        checkpoint = None
 
+    checkpoint = args.checkpoint
     model, tokenizer = instantiate_model_and_tokenizer(
         config['model'],
         checkpoint=checkpoint,
@@ -141,7 +138,6 @@ def do_train(local_rank, args, config):
     def update(engine):
         logger.info('training started!')
 
-    @trainer.on(Events.EPOCH_COMPLETED)
     @trainer.on(Events.ITERATION_COMPLETED(every=config['accum_steps']))
     def update(engine):
         scaler.unscale_(optimizer)
@@ -151,14 +147,11 @@ def do_train(local_rank, args, config):
         optimizer.zero_grad()
         scheduler.step()
 
-    @trainer.on(Events.EPOCH_COMPLETED)
+    @trainer.on(Events.ITERATION_COMPLETED(every=config['accum_steps']*config['eval_every']))
     def log_trn_loss(engine):
         log_msg = f"training epoch: {engine.state.epoch}"
         log_msg += f" | loss_amr: {engine.state.metrics['trn_amr_loss']:.3f}"
         logger.info(log_msg)
-
-    @trainer.on(Events.EPOCH_COMPLETED)
-    def run_dev_eval(engine):
         dev_loader.batch_size = config['batch_size']
         dev_loader.device = device
         evaluator.run(dev_loader)
@@ -255,7 +248,7 @@ if __name__ == '__main__':
     )
     parser.add_argument('--config', type=Path, default='configs/sweeped.yaml',
         help='Use the following config for hparams.')
-    parser.add_argument('--checkpoint', type=str,
+    parser.add_argument('--checkpoint', type=str, default=None,
         help='Warm-start from a previous fine-tuned checkpoint.')
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--ROOT', type=Path)

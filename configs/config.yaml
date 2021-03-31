@@ -35,6 +35,7 @@ beam_size: 5
 dropout: 0.25
 attention_dropout: 0.0
 smart_init: True
+eval_every: 1000
 accum_steps: 5
 warmup_steps: 1
 training_steps: 250000
@@ -53,6 +54,6 @@ seed: 19940117
 
 # <------------------
 # Data: replace DATA below with the root of your AMR 2/3 release folder
-train: abstract_meaning_representation_amr_2.0/data/amrs/split/training/*.txt
-dev: abstract_meaning_representation_amr_2.0/data/amrs/split/dev/*.txt
-test: abstract_meaning_representation_amr_2.0/data/amrs/split/test/*.txt
+train: /apdcephfs/share_916081/jcykcai/nonono/abstract_meaning_representation_amr_2.0/data/amrs/split/training/*.txt
+dev: /apdcephfs/share_916081/jcykcai/nonono/abstract_meaning_representation_amr_2.0/data/amrs/split/dev/*.txt
+test: /apdcephfs/share_916081/jcykcai/nonono/abstract_meaning_representation_amr_2.0/data/amrs/split/test/*.txt
