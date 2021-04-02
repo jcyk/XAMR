@@ -1,7 +1,7 @@
 from glob import glob
 from pathlib import Path
 
-import torch
+import os, torch
 from transformers import AutoConfig, AutoModelForSeq2SeqLM
 
 from spring_amr.dataset import AMRDataset, AMRDatasetTokenBatcherAndLoader
@@ -32,7 +32,10 @@ def instantiate_model_and_tokenizer(
         AMRTokenizer, PENMANTokenizer = AMRMBart50Tokenizer, PENMANMBart50Tokenizer
     else:
         AMRTokenizer, PENMANTokenizer = AMRBartTokenizer, PENMANBartTokenizer
-    
+     
+    if os.path.isdir('/apdcephfs/share_916081/jcykcai/' + name):
+        name = '/apdcephfs/share_916081/jcykcai/' + name
+
     config = AutoConfig.from_pretrained(name)
     config.output_past = False
     config.no_repeat_ngram_size = 0

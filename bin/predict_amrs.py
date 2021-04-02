@@ -31,6 +31,7 @@ def run(local_rank, args):
         raw_graph=args.raw_graph,
     )
 
+    tokenizer.src_lang = args.src_lang
     #load_spring_ckpt(model, args.checkpoint)
     model.load_state_dict(torch.load(args.checkpoint, map_location='cpu')['model'])
     model.to(device)
@@ -110,8 +111,8 @@ if __name__ == '__main__':
     parser.add_argument('--restore-name-ops', action='store_true')
     parser.add_argument('--return-all', action='store_true')
     parser.add_argument('--nproc-per-node', type=int, default=2)
-
+    parser.add_argument('--src_lang', type=str, default="en_XX", help="en_XX, de_DE, zh_CN, es_XX, it_IT")
     args = parser.parse_args()
-    with idist.Parallel(backend="nccl", nproc_per_node=args.nproc_per_node) as parallel:
+    with idist.Parallel(backend="nccl", nproc_per_node=args.nproc_per_node, master_port=8888) as parallel:
         parallel.run(run, args)
 

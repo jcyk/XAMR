@@ -89,8 +89,7 @@ class AMRDataset(Dataset):
     
 class AMRDatasetTokenBatcherAndLoader:
     
-    def __init__(self, dataset, batch_size=800 ,device=torch.device('cpu'), shuffle=False, sort=False):
-        assert not (shuffle and sort)
+    def __init__(self, dataset, batch_size=800 ,device=torch.device('cpu'), shuffle=False, sort=True):
         self.batch_size = batch_size
         self.tokenizer = dataset.tokenizer
         self.dataset = dataset
@@ -100,15 +99,20 @@ class AMRDatasetTokenBatcherAndLoader:
 
     def __iter__(self):
         it = self.sampler()
-        it = ([[self.dataset[s] for s in b] for b in it])
+        it = [[self.dataset[s] for s in b] for b in it]
+        if self.shuffle:
+            random.shuffle(it)
         it = (self.dataset.collate_fn(b, device=self.device) for b in it)
         return it
 
     @cached_property
     def sort_ids(self):
-        lengths = [len(s.split()) for s in self.dataset.sentences]
-        ids, _ = zip(*sorted(enumerate(lengths), reverse=True))
-        ids = list(ids)
+        #lengths = [len(s.split()) for s in self.dataset.sentences]
+        #ids, _ = zip(*sorted(enumerate(lengths), reverse=True))
+        #ids = list(ids)
+        lengths = [self.dataset.size(x) for x in self.dataset]
+        ids = list(range(len(self.dataset)))
+        ids.sort(key=lambda x: -lengths[x])
         return ids
 
     def sampler(self):

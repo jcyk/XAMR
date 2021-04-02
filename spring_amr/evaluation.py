@@ -8,10 +8,13 @@ from tqdm import tqdm
 import smatch
 from spring_amr.tokenization_bart import AMRBartTokenizer, PENMANBartTokenizer
 from spring_amr.dataset import reverse_direction
+import numpy as np
 
 def predict_amrs(
         loader, model, tokenizer, beam_size=1, tokens=None, restore_name_ops=False, return_all=False):
 
+
+    model = model.module if hasattr(model, "module") else model
     shuffle_orig = loader.shuffle
     sort_orig = loader.sort
 
@@ -20,7 +23,6 @@ def predict_amrs(
 
     total = len(loader.dataset)
     model.eval()
-    model.amr_mode = True
 
     is_bart = isinstance(tokenizer, AMRBartTokenizer) or isinstance(tokenizer, PENMANBartTokenizer) 
     if tokens is None:
@@ -55,7 +57,7 @@ def predict_amrs(
                         tokens_same_source.append(tokk)
                 bar.update(nseq)
         # reorder
-        tokens = [tokens[i] for i in ids]
+        tokens = [tokens[i] for i in np.argsort(np.array(ids))]
         tokens = [t for tt in tokens for t in tt]
 
     graphs = []
@@ -99,7 +101,6 @@ def predict_sentences(loader, model, tokenizer, beam_size=1, tokens=None, return
 
     total = len(loader.dataset)
     model.eval()
-    model.amr_mode = False
     
     if tokens is None:
         ids = []

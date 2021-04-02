@@ -28,7 +28,7 @@ from ignite.handlers import ModelCheckpoint, global_step_from_engine
 import ignite.distributed as idist
 from ignite.utils import setup_logger, manual_seed
 
-def do_train(local_rank, args, config):
+def do_train(local_rank, args, config, where_checkpoints):
 
     rank = idist.get_rank()
     manual_seed(config["seed"] + rank)
@@ -36,9 +36,6 @@ def do_train(local_rank, args, config):
     device = idist.device()
 
     fp16 = args.fp16
-    root = args.ROOT/'runs'
-    if rank == 0:
-        root.mkdir(parents=True, exist_ok=True)
     
     logger = setup_logger(name="Training")
     logger.info(config)
@@ -99,9 +96,6 @@ def do_train(local_rank, args, config):
         dereify=config['dereify'],
     )
 
-    where_checkpoints = root/str(len(list(root.iterdir())))
-    where_checkpoints.mkdir()
-
     dev_gold_path = where_checkpoints / 'tmp-dev-gold.txt'
     dev_pred_path = where_checkpoints / 'tmp-dev-pred.txt'
     dev_loader = instantiate_loader(
@@ -147,17 +141,23 @@ def do_train(local_rank, args, config):
         optimizer.zero_grad()
         scheduler.step()
 
-    @trainer.on(Events.ITERATION_COMPLETED(every=config['accum_steps']*config['eval_every']))
+    @trainer.on(Events.ITERATION_COMPLETED(every=config['accum_steps']*config['eval_every'])|Events.COMPLETED)
     def log_trn_loss(engine):
-        log_msg = f"training epoch: {engine.state.epoch}"
+        log_msg = f"training epoch: {engine.state.epoch}, iteration {engine.state.iteration}"
         log_msg += f" | loss_amr: {engine.state.metrics['trn_amr_loss']:.3f}"
         logger.info(log_msg)
         dev_loader.batch_size = config['batch_size']
         dev_loader.device = device
         evaluator.run(dev_loader)
 
+
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def epoch_finished(engine):
+        log_msg = f"training epoch: {engine.state.epoch}, iteration {engine.state.iteration}"
+        logger.info(log_msg)
+
     if not config['best_loss']:
-        @evaluator.on(Events.EPOCH_COMPLETED)
+        @evaluator.on(Events.COMPLETED)
         def smatch_eval(engine):
             loader = instantiate_loader(
                 config['dev'],
@@ -168,8 +168,7 @@ def do_train(local_rank, args, config):
                 rank=rank,
                 world_size=world_size
             )
-            dev_loader.device = device
-
+            loader.device = device 
             graphs = predict_amrs(
                 loader,
                 model,
@@ -194,13 +193,14 @@ def do_train(local_rank, args, config):
                 pieces = [ pred_pieces[i%world_size][i//world_size] for i in range(tot) ]
                 dev_pred_path.write_text('\n\n'.join(pieces))
                 #write_predictions(dev_pred_path, tokenizer, graphs)
+            idist.barrier()
             try:
                 smatch = compute_smatch(dev_gold_path, dev_pred_path)
             except:
                 smatch = 0.
             engine.state.metrics['dev_smatch'] = smatch
 
-    @evaluator.on(Events.EPOCH_COMPLETED)
+    @evaluator.on(Events.COMPLETED)
     def log_dev_loss(engine):
         log_msg = f"dev epoch: {trainer.state.epoch}"
         log_msg += f" | loss_amr: {engine.state.metrics['dev_amr_loss']:.3f}"
@@ -232,10 +232,47 @@ def do_train(local_rank, args, config):
             score_function=score_function,
             global_step_transform=global_step_from_engine(trainer),
         )
-        evaluator.add_event_handler(Events.EPOCH_COMPLETED, handler, to_save)
+        evaluator.add_event_handler(Events.COMPLETED, handler, to_save)
 
     train_loader.device = device
     trainer.run(train_loader, max_epochs=config['max_epochs'])
+
+def check_data(args, config):
+    checkpoint = args.checkpoint
+    model, tokenizer = instantiate_model_and_tokenizer(
+        config['model'],
+        checkpoint=checkpoint,
+        additional_tokens_smart_init=config['smart_init'],
+        dropout=config['dropout'],
+        attention_dropout=config['attention_dropout'],
+        from_pretrained=config['warm_start'],
+        penman_linearization=config['penman_linearization'],
+        collapse_name_ops=config['collapse_name_ops'],
+        use_pointer_tokens=config['use_pointer_tokens'],
+        raw_graph=config.get('raw_graph', False)
+    )
+
+    train_loader = instantiate_loader(
+        config['train'],
+        tokenizer,
+        batch_size=config['batch_size'],
+        evaluation=False,
+        use_recategorization=config['use_recategorization'],
+        remove_longer_than=config['remove_longer_than'],
+        remove_wiki=config['remove_wiki'],
+        dereify=config['dereify'],
+    )
+
+    cnt = 0
+    for x, y, extra in train_loader:
+        pad_rate_o = torch.eq(y['labels'], tokenizer.pad_token_id).float().sum().item() / y['labels'].numel()
+        pad_rate_i = torch.eq(x['input_ids'], tokenizer.pad_token_id).float().sum().item() / x['input_ids'].numel()
+        print ( pad_rate_i, pad_rate_o, (1-pad_rate_o)*y['labels'].numel(), y['labels'].size())
+
+        print (extra['sentences'][0], extra['linearized_graphs'][0])
+        cnt += 1
+    print (cnt)
+    assert True == False
 
 if __name__ == '__main__':
 
@@ -252,7 +289,6 @@ if __name__ == '__main__':
         help='Warm-start from a previous fine-tuned checkpoint.')
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--ROOT', type=Path)
-    parser.add_argument('--nproc_per_node', type=int, default=2)
 
     args, unknown = parser.parse_known_args()
 
@@ -262,7 +298,13 @@ if __name__ == '__main__':
     with args.config.open() as y:
         config = yaml.load(y, Loader=yaml.FullLoader)
 
-    with idist.Parallel(backend="nccl", nproc_per_node=args.nproc_per_node) as parallel:
-        parallel.run(do_train, args, config)
+    root = args.ROOT/'runs'
+    root.mkdir(parents=True, exist_ok=True)
+    where_checkpoints = root/str(len(list(root.iterdir())))
+    where_checkpoints.mkdir()
+    
+    #check_data(args, config)
+    with idist.Parallel(backend="nccl", nproc_per_node=config['nproc_per_node']) as parallel:
+        parallel.run(do_train, args, config, where_checkpoints)
 
 
