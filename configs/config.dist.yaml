@@ -30,21 +30,21 @@ dereify: False
 collapse_name_ops: False
 
 # Hparams
-batch_size: 500
+batch_size: 1250
 beam_size: 5
 dropout: 0.25
 attention_dropout: 0.0
 smart_init: True
 eval_every: 1000
-accum_steps: 10
-nproc_per_node: 1
+accum_steps: 1
+nproc_per_node: 4
 warmup_steps: 1
 training_steps: 250000
 weight_decay: 0.004
 grad_norm: 2.5
 scheduler: constant
 learning_rate: 0.00005
-max_epochs: 30
+max_epochs: 10
 save_checkpoints: True
 log_wandb: False
 warm_start: True
