@@ -17,8 +17,23 @@ def read_raw_amr_data(
     graphs = []
     for path_ in paths:
         for path in glob.glob(str(path_)):
-            path = Path(path)    
-            graphs.extend(pm_load(path, dereify=dereify, remove_wiki=remove_wiki))
+            path = Path(path)
+            #en_XX, de_DE, es_XX, it_IT, zh_CN
+            if str(path).endswith("_de.txt"):
+                lang_code = "de_DE"
+            elif str(path).endswith("_es.txt"):
+                lang_code = "es_XX"
+            elif str(path).endswith("_it.txt"):
+                lang_code = "it_IT"
+            elif str(path).endswith("_zh.txt"):
+                lang_code = "zh_CN"
+            else:
+                lang_code = "en_XX"
+            pm_graphs = pm_load(path, dereify=dereify, remove_wiki=remove_wiki)
+            for g in pm_graphs:
+                g.metadata["snt_lang"] = lang_code
+
+            graphs.extend(pm_graphs)
 
     assert graphs
     

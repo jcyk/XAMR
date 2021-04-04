@@ -265,11 +265,8 @@ def check_data(args, config):
 
     cnt = 0
     for x, y, extra in train_loader:
-        pad_rate_o = torch.eq(y['labels'], tokenizer.pad_token_id).float().sum().item() / y['labels'].numel()
-        pad_rate_i = torch.eq(x['input_ids'], tokenizer.pad_token_id).float().sum().item() / x['input_ids'].numel()
-        print ( pad_rate_i, pad_rate_o, (1-pad_rate_o)*y['labels'].numel(), y['labels'].size())
-
-        print (extra['sentences'][0], extra['linearized_graphs'][0])
+        #print (x["input_ids"])
+        #print (x["attention_mask"])
         cnt += 1
     print (cnt)
     assert True == False

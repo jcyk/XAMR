@@ -10,7 +10,7 @@ from transformers import BartTokenizer
 from spring_amr import ROOT, postprocessing
 from spring_amr.linearization import AMRTokens, AMRLinearizer
 from spring_amr.penman import encode
-
+from torch.nn.utils.rnn import pad_sequence
 
 class AMRBartTokenizer(BartTokenizer):
 
@@ -186,13 +186,18 @@ class AMRBartTokenizer(BartTokenizer):
         bpe_backreferences = [b for bb in bpe_backreferences for b in bb]
         return bpe_tokens, bpe_token_ids, bpe_backreferences
 
-    def batch_encode_sentences(self, sentences, device=torch.device('cpu')):
-        sentences = [s for s in sentences]
-        extra = {'sentences': sentences}
-        batch = super().batch_encode_plus(sentences, return_tensors='pt', padding="longest") 
-        batch = {k: v.to(device) for k, v in batch.items()}
-        return batch, extra
-    
+    def batch_encode_sentences_from_tokenized(self, tokenized, extras=None, device=torch.device('cpu')):
+        if extras is not None:
+            batch_extra = {'sentences': []}
+            for extra in extras:
+                batch_extra['sentences'].append(extra['sentence'])
+        else:
+            batch_extra = {}
+
+        input_ids = pad_sequence(tokenized, batch_first=True, padding_value=self.pad_token_id)
+        batch = {'input_ids':input_ids, 'attention_mask':torch.ne(input_ids, self.pad_token_id).to(torch.int64)} 
+        return batch, batch_extra 
+
     def linearize(self, graph):
         shift = len(self.encoder)
         tokens, token_ids, backreferences = self.tokenize_amr(graph)

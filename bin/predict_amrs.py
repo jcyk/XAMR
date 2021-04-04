@@ -78,7 +78,8 @@ def run(local_rank, args):
     args.pred_path.write_text('\n\n'.join(pieces))
     if not args.return_all:
         score = compute_smatch(args.gold_path, args.pred_path)
-        print(f'Smatch: {score:.3f}')
+        print (args.checkpoint, args.datasets)
+        print (f'Smatch: {score:.3f}')
 
 if __name__ == '__main__':
 

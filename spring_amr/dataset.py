@@ -36,24 +36,23 @@ class AMRDataset(Dataset):
         graphs = graphs[rank::world_size]
         self.graphs = []
         self.sentences = []
+        self.tokenized = []
         self.linearized = []
         self.linearized_extra = []
         self.remove_longer_than = remove_longer_than
         for g in graphs:
             l, e = self.tokenizer.linearize(g)
             
-            try:
-                self.tokenizer.batch_encode_sentences([g.metadata['snt']])
-            except:
-                logging.warning('Invalid sentence!')
-                continue
 
+            self.tokenizer.src_lang = g.metadata['snt_lang']
+            x = self.tokenizer.encode(g.metadata['snt'], return_tensors='pt')[0]
             if remove_longer_than and len(l) > remove_longer_than:
                 continue
             if len(l) > 1024:
                 logging.warning('Sequence longer than 1024 included. BART does not support it!')
 
             self.sentences.append(g.metadata['snt'])
+            self.tokenized.append(x)
             self.graphs.append(g)
             self.linearized.append(l)
             self.linearized_extra.append(e)
@@ -64,7 +63,8 @@ class AMRDataset(Dataset):
     def __getitem__(self, idx):
         sample = {}
         sample['id'] = idx
-        sample['sentences'] = self.sentences[idx]
+        sample['sentence'] = self.sentences[idx]
+        sample["tokenized_ids"] = self.tokenized[idx]
         if self.linearized is not None:
             sample['linearized_graphs_ids'] = self.linearized[idx]
             sample.update(self.linearized_extra[idx])            
@@ -74,8 +74,8 @@ class AMRDataset(Dataset):
         return len(sample['linearized_graphs_ids'])
     
     def collate_fn(self, samples, device=torch.device('cpu')):
-        x = [s['sentences'] for s in samples]
-        x, extra = self.tokenizer.batch_encode_sentences(x, device=device)
+        x = [s['tokenized_ids'] for s in samples]
+        x, extra = self.tokenizer.batch_encode_sentences_from_tokenized(x, samples, device=device)
         if 'linearized_graphs_ids' in samples[0]:
             y = [s['linearized_graphs_ids'] for s in samples]
             y, extra_y = self.tokenizer.batch_encode_graphs_from_linearized(y, samples, device=device)

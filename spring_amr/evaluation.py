@@ -36,14 +36,14 @@ def predict_amrs(
                     if is_bart:
                         out = model.generate(
                         **x,
-                        max_length=1024,
+                        max_length=512,
                         decoder_start_token_id=0,
                         num_beams=beam_size,
                         num_return_sequences=beam_size)
                     else:
                         out = model.generate(
                         **x,
-                        max_length=1024,
+                        max_length=512,
                         forced_bos_token_id=0,
                         num_beams=beam_size,
                         num_return_sequences=beam_size)
@@ -127,7 +127,7 @@ def predict_sentences(loader, model, tokenizer, beam_size=1, tokens=None, return
                         tokens_same_source.append(tokk)
                 bar.update(out.size(0) // beam_size)
         #reorder
-        tokens = [tokens[i] for i in ids]
+        tokens = [tokens[i] for i in np.argsort(np.array(ids))]
 
     sentences = []
     for tokens_same_source in tokens:
