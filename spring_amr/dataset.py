@@ -105,23 +105,17 @@ class AMRDatasetTokenBatcherAndLoader:
         it = (self.dataset.collate_fn(b, device=self.device) for b in it)
         return it
 
-    @cached_property
-    def sort_ids(self):
-        #lengths = [len(s.split()) for s in self.dataset.sentences]
-        #ids, _ = zip(*sorted(enumerate(lengths), reverse=True))
-        #ids = list(ids)
-        lengths = [self.dataset.size(x) for x in self.dataset]
-        ids = list(range(len(self.dataset)))
-        ids.sort(key=lambda x: -lengths[x])
-        return ids
-
     def sampler(self):
-        ids = list(range(len(self.dataset)))[::-1]
-        
+        ids = list(range(len(self.dataset)))
+
         if self.shuffle:
             random.shuffle(ids)
         if self.sort:
-            ids = self.sort_ids.copy()
+            if self.shuffle:
+                lengths = [self.dataset.size(x) for x in self.dataset]
+            else:
+                lengths = [s.size(0) for s in self.dataset.tokenized]
+            ids.sort(key=lambda x: -lengths[x])
 
         batch_longest = 0
         batch_nexamps = 0

@@ -10,6 +10,9 @@ from spring_amr.tokenization_bart import AMRBartTokenizer, PENMANBartTokenizer
 from spring_amr.dataset import reverse_direction
 import numpy as np
 
+
+
+@torch.no_grad()
 def predict_amrs(
         loader, model, tokenizer, beam_size=1, tokens=None, restore_name_ops=False, return_all=False):
 
@@ -32,22 +35,22 @@ def predict_amrs(
             for x, y, extra in loader:
                 ii = extra['ids']
                 ids.extend(ii)
-                with torch.no_grad():
-                    if is_bart:
-                        out = model.generate(
+                max_len = min(5*x['input_ids'].size(1), 512)
+                if is_bart:
+                    out = model.generate(
                         **x,
-                        max_length=512,
+                        max_length=max_len,
                         decoder_start_token_id=0,
                         num_beams=beam_size,
                         num_return_sequences=beam_size)
-                    else:
-                        out = model.generate(
+                else:
+                    out = model.generate(
                         **x,
-                        max_length=512,
+                        max_length=max_len,
                         forced_bos_token_id=0,
                         num_beams=beam_size,
                         num_return_sequences=beam_size)
-                        out = out[:,1:]
+                    out = out[:,1:]
                 nseq = len(ii)
                 for i1 in range(0, out.size(0), beam_size):
                     tokens_same_source = []

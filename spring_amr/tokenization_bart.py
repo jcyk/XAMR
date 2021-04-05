@@ -196,6 +196,7 @@ class AMRBartTokenizer(BartTokenizer):
 
         input_ids = pad_sequence(tokenized, batch_first=True, padding_value=self.pad_token_id)
         batch = {'input_ids':input_ids, 'attention_mask':torch.ne(input_ids, self.pad_token_id).to(torch.int64)} 
+        batch = {k: v.to(device) for k, v in batch.items()}
         return batch, batch_extra 
 
     def linearize(self, graph):

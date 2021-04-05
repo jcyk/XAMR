@@ -150,12 +150,6 @@ def do_train(local_rank, args, config, where_checkpoints):
         dev_loader.device = device
         evaluator.run(dev_loader)
 
-
-    @trainer.on(Events.EPOCH_COMPLETED)
-    def epoch_finished(engine):
-        log_msg = f"training epoch: {engine.state.epoch}, iteration {engine.state.iteration}"
-        logger.info(log_msg)
-
     if not config['best_loss']:
         @evaluator.on(Events.COMPLETED)
         def smatch_eval(engine):
@@ -202,7 +196,7 @@ def do_train(local_rank, args, config, where_checkpoints):
 
     @evaluator.on(Events.COMPLETED)
     def log_dev_loss(engine):
-        log_msg = f"dev epoch: {trainer.state.epoch}"
+        log_msg = f"dev epoch: {trainer.state.epoch} iteration {trainer.state.iteration}"
         log_msg += f" | loss_amr: {engine.state.metrics['dev_amr_loss']:.3f}"
         if not config['best_loss']:
             log_msg += f" | smatch: {engine.state.metrics['dev_smatch']:.3f}"
@@ -264,11 +258,17 @@ def check_data(args, config):
     )
 
     cnt = 0
+    mx = 0
     for x, y, extra in train_loader:
-        #print (x["input_ids"])
+        #print (tokenizer.convert_ids_to_tokens(x["input_ids"][0]))
         #print (x["attention_mask"])
+        #print (tokenizer.convert_ids_to_tokens(y["labels"][0]))
+        #print (tokenizer.convert_ids_to_tokens(y["decoder_input_ids"][0]))
+        il = x["input_ids"].size(1)
+        ol = y["labels"].size(1)
+        mx = max(ol/il, mx)
         cnt += 1
-    print (cnt)
+    print (cnt, mx)
     assert True == False
 
 if __name__ == '__main__':
