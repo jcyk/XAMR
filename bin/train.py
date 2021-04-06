@@ -112,17 +112,34 @@ def do_train(local_rank, args, config, where_checkpoints):
     def train_step(engine, batch):
         model.train()
         x, y, extra = batch
-        with autocast(enabled=fp16):
-            loss, *_ = model(**x, **y)
-        scaler.scale((loss / config['accum_steps'])).backward()
-        return loss.item()
+        try:
+            with autocast(enabled=fp16):
+                loss, *_ = model(**x, **y)
+            scaler.scale((loss / config['accum_steps'])).backward()
+            loss = loss.item()
+        except RuntimeError as e:
+            if "out of memory" in str(e):
+                print ("training OOM")
+                optimizer.zero_grad()
+                torch.cuda.empty_cache()
+                return 0.
+            raise e
+
+        return loss
 
     @torch.no_grad()
     def eval_step(engine, batch):
         model.eval()
         x, y, extra = batch
-        loss, *_ = model(**x, **y)
-        return loss.item()
+        try:
+            loss, *_ = model(**x, **y)
+            loss = loss.item()
+        except RuntimeError as e:
+            if "out of memory" in str(e):
+                print ("eval OOM")
+                return 0.
+            raise e
+        return loss
 
 
     trainer = Engine(train_step)
@@ -154,6 +171,11 @@ def do_train(local_rank, args, config, where_checkpoints):
             to_save = {'model': m.state_dict(), 'optimizer': o.state_dict()}
             torch.save(to_save, where_checkpoints / 'last_ckpt')
         evaluator.run(dev_loader)
+        torch.cuda.empty_cache()
+
+    @evaluator.on(Events.STARTED)
+    def evaluate(engine):
+        logger.info('evaluating started!')
 
     if not config['best_loss']:
         @evaluator.on(Events.COMPLETED)
@@ -198,7 +220,6 @@ def do_train(local_rank, args, config, where_checkpoints):
             except:
                 smatch = 0.
             engine.state.metrics['dev_smatch'] = smatch
-            torch.cuda.empty_cache()
 
     @evaluator.on(Events.COMPLETED)
     def log_dev_loss(engine):

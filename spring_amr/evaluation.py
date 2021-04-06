@@ -80,7 +80,7 @@ def predict_amrs(
     if tokens is None:
         ids = []
         tokens = []
-        with tqdm(total=total) as bar:
+        with tqdm(total=total, desc="rank {}".format(loader.rank)) as bar:
             for x, y, extra in loader:
                 ii = extra['ids']
                 ids.extend(ii)

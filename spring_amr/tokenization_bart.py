@@ -238,33 +238,33 @@ class AMRBartTokenizer(BartTokenizer):
         try:
             nodes, backreferences = postprocessing.decode_into_node_and_backreferences(tokens, self)
         except Exception as e:
-            print('Decoding failure:', file=sys.stderr)
-            print(e, file=sys.stderr)
+            # print('Decoding failure:', file=sys.stderr)
+            # print(e, file=sys.stderr)
             return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (None, None)
         if self.use_pointer_tokens:
             nodes, backreferences = postprocessing.restore_backreferences_from_pointers(nodes)
         try:
             graph_ = graph = postprocessing.build_graph(nodes, backreferences, restore_name_ops=restore_name_ops)
         except Exception as e:
-            print('Building failure:', file=sys.stderr)
-            print(nodes, file=sys.stderr)
-            print(backreferences, file=sys.stderr)
-            print(e, file=sys.stderr)
+            # print('Building failure:', file=sys.stderr)
+            # print(nodes, file=sys.stderr)
+            # print(backreferences, file=sys.stderr)
+            # print(e, file=sys.stderr)
             return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (None, None)
         try:
             graph, status = postprocessing.connect_graph_if_not_connected(graph)
-            if status == postprocessing.ParsedStatus.BACKOFF:
-                print('Reconnection 1 failure:')
-                print(nodes, file=sys.stderr)
-                print(backreferences, file=sys.stderr)
-                print(graph_, file=sys.stderr)
+            # if status == postprocessing.ParsedStatus.BACKOFF:
+            #     print('Reconnection 1 failure:')
+            #     print(nodes, file=sys.stderr)
+            #     print(backreferences, file=sys.stderr)
+            #     print(graph_, file=sys.stderr)
             return graph, status, (nodes, backreferences)
         except Exception as e:
-            print('Reconnction 2 failure:', file=sys.stderr)
-            print(e, file=sys.stderr)
-            print(nodes, file=sys.stderr)
-            print(backreferences, file=sys.stderr)
-            print(graph_, file=sys.stderr)
+            # print('Reconnction 2 failure:', file=sys.stderr)
+            # print(e, file=sys.stderr)
+            # print(nodes, file=sys.stderr)
+            # print(backreferences, file=sys.stderr)
+            # print(graph_, file=sys.stderr)
             return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (nodes, backreferences)
 
 class PENMANBartTokenizer(AMRBartTokenizer):
@@ -651,31 +651,31 @@ class PENMANBartTokenizer(AMRBartTokenizer):
                 nodes, backreferences = postprocessing.decode_into_node_and_backreferences(tokens, self)
             nodes_ = nodes
         except Exception as e:
-            print('Decoding failure:', file=sys.stderr)
-            print(e, file=sys.stderr)
+            #print('Decoding failure:', file=sys.stderr)
+            #print(e, file=sys.stderr)
             return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (None, None)
         try:
             graph_ = graph = self._fix_and_make_graph(nodes)
             if self.collapse_name_ops:
                 graph_ = graph = postprocessing._split_name_ops(graph)
         except Exception as e:
-            print('Building failure:', file=sys.stderr)
-            print(nodes, file=sys.stderr)
-            print(backreferences, file=sys.stderr)
-            print(e, file=sys.stderr)
+            #print('Building failure:', file=sys.stderr)
+            #print(nodes, file=sys.stderr)
+            #print(backreferences, file=sys.stderr)
+            #print(e, file=sys.stderr)
             return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (None, None)
         try:
             graph, status = postprocessing.connect_graph_if_not_connected(graph)
-            if status == postprocessing.ParsedStatus.BACKOFF:
-                print('Reconnection 1 failure:')
-                print(nodes, file=sys.stderr)
-                print(backreferences, file=sys.stderr)
-                print(graph_, file=sys.stderr)
+            # if status == postprocessing.ParsedStatus.BACKOFF:
+            #     print('Reconnection 1 failure:')
+            #     print(nodes, file=sys.stderr)
+            #     print(backreferences, file=sys.stderr)
+            #     sprint(graph_, file=sys.stderr)
             return graph, status, (nodes_, backreferences)
         except Exception as e:
-            print('Reconnction 2 failure:', file=sys.stderr)
-            print(e, file=sys.stderr)
-            print(nodes, file=sys.stderr)
-            print(backreferences, file=sys.stderr)
-            print(graph_, file=sys.stderr)
+            # print('Reconnction 2 failure:', file=sys.stderr)
+            # print(e, file=sys.stderr)
+            # print(nodes, file=sys.stderr)
+            # print(backreferences, file=sys.stderr)
+            # print(graph_, file=sys.stderr)
             return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (nodes_, backreferences)

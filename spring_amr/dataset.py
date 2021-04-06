@@ -30,6 +30,7 @@ class AMRDataset(Dataset):
         world_size=1
     ):
         logger = setup_logger(name="Data Loading")
+        self.rank = rank
         self.paths = paths
         self.tokenizer = tokenizer
         self.device = device
@@ -106,6 +107,10 @@ class AMRDatasetTokenBatcherAndLoader:
         self.device = device
         self.shuffle = shuffle
         self.sort = sort
+
+    @property
+    def rank(self):
+        return self.dataset.rank
 
     def __iter__(self):
         it = self.sampler()
