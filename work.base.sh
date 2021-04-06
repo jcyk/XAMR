@@ -16,7 +16,7 @@ PYTHONPATH=. python3 bin/predict_amrs.py \
 --gold-path tmp-dev-gold.txt \
 --pred-path tmp-dev-pred.txt \
 --beam-size 5 \
---batch-size 500 \
+--batch-size 5000 \
 --penman-linearization \
 --use-pointer-tokens
 
@@ -33,7 +33,7 @@ for i in $(seq 1 1 ${#LANGUAGES_codes[@]}); do
         --gold-path tmp-dev-gold.txt \
         --pred-path tmp-dev-pred.txt \
         --beam-size 5 \
-        --batch-size 500 \
+        --batch-size 5000 \
         --penman-linearization \
         --use-pointer-tokens
 done

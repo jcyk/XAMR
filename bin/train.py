@@ -148,6 +148,11 @@ def do_train(local_rank, args, config, where_checkpoints):
         logger.info(log_msg)
         dev_loader.batch_size = config['batch_size']
         dev_loader.device = device
+        if rank == 0:
+            m = model.module if hasattr(model, "module") else model
+            o = optimizer.module if hasattr(optimizer, "module") else optimizer
+            to_save = {'model': m.state_dict(), 'optimizer': o.state_dict()}
+            torch.save(to_save, where_checkpoints / 'last_ckpt')
         evaluator.run(dev_loader)
 
     if not config['best_loss']:
@@ -156,7 +161,7 @@ def do_train(local_rank, args, config, where_checkpoints):
             loader = instantiate_loader(
                 config['dev'],
                 tokenizer,
-                batch_size=config['batch_size'],
+                batch_size=config['batch_size']//2,
                 evaluation=True,
                 use_recategorization=config['use_recategorization'],
                 rank=rank,
@@ -193,6 +198,7 @@ def do_train(local_rank, args, config, where_checkpoints):
             except:
                 smatch = 0.
             engine.state.metrics['dev_smatch'] = smatch
+            torch.cuda.empty_cache()
 
     @evaluator.on(Events.COMPLETED)
     def log_dev_loss(engine):
@@ -216,10 +222,9 @@ def do_train(local_rank, args, config, where_checkpoints):
             score_function = lambda x: evaluator.state.metrics['dev_smatch']
 
         to_save = {'model': model, 'optimizer': optimizer}
-        where_checkpoints = str(where_checkpoints)
 
         handler = ModelCheckpoint(
-            where_checkpoints,
+            str(where_checkpoints),
             prefix,
             n_saved=1,
             create_dir=True,
@@ -247,7 +252,7 @@ def check_data(args, config):
     )
 
     train_loader = instantiate_loader(
-        config['train'],
+        config['test'],
         tokenizer,
         batch_size=config['batch_size'],
         evaluation=False,
@@ -295,12 +300,13 @@ if __name__ == '__main__':
     with args.config.open() as y:
         config = yaml.load(y, Loader=yaml.FullLoader)
 
+    #check_data(args, config)
+
     root = args.ROOT/'runs'
     root.mkdir(parents=True, exist_ok=True)
     where_checkpoints = root/str(len(list(root.iterdir())))
     where_checkpoints.mkdir()
     
-    #check_data(args, config)
     with idist.Parallel(backend="nccl", nproc_per_node=config['nproc_per_node']) as parallel:
         parallel.run(do_train, args, config, where_checkpoints)
 

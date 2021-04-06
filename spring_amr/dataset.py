@@ -1,9 +1,9 @@
-import logging
 import random
 import torch
 from cached_property import cached_property
 from torch.utils.data import Dataset
 from spring_amr.IO import read_raw_amr_data
+from ignite.utils import setup_logger
 
 def reverse_direction(x, y, pad_token_id=1):
     input_ids = torch.cat([y['decoder_input_ids'], y['labels'][:, -1:]], 1)
@@ -29,6 +29,7 @@ class AMRDataset(Dataset):
         rank=0,
         world_size=1
     ):
+        logger = setup_logger(name="Data Loading")
         self.paths = paths
         self.tokenizer = tokenizer
         self.device = device
@@ -40,6 +41,7 @@ class AMRDataset(Dataset):
         self.linearized = []
         self.linearized_extra = []
         self.remove_longer_than = remove_longer_than
+        discarded = 0
         for g in graphs:
             l, e = self.tokenizer.linearize(g)
             
@@ -47,9 +49,16 @@ class AMRDataset(Dataset):
             self.tokenizer.src_lang = g.metadata['snt_lang']
             x = self.tokenizer.encode(g.metadata['snt'], return_tensors='pt')[0]
             if remove_longer_than and len(l) > remove_longer_than:
+                discarded += 1
                 continue
+            #if x.size(0) / len(l) > 6. or len(l) / x.size(0) > 6.:
+            #    logger.warning('bad training instance len(in):{}/len(out):{}'.format(x.size(0), len(l)))
+            #    discarded += 1
+            #    continue
             if len(l) > 1024:
-                logging.warning('Sequence longer than 1024 included. BART does not support it!')
+                discarded += 1
+                logger.warning('Sequence longer than 1024 included. BART does not support it!')
+                continue
 
             self.sentences.append(g.metadata['snt'])
             self.tokenized.append(x)
@@ -57,6 +66,7 @@ class AMRDataset(Dataset):
             self.linearized.append(l)
             self.linearized_extra.append(e)
 
+        logger.info('the number of instances {}, discarded {}'.format(len(self.sentences), discarded))
     def __len__(self):
         return len(self.sentences)
     

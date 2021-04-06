@@ -9,10 +9,59 @@ import smatch
 from spring_amr.tokenization_bart import AMRBartTokenizer, PENMANBartTokenizer
 from spring_amr.dataset import reverse_direction
 import numpy as np
+from torch.nn.utils.rnn import pad_sequence
 
 
+def split_oom(x):
+    x0, x1 = {}, {}
+    for k, v in x.items():
+        x0[k] = v[:v.size(0)//2]
+        x1[k] = v[v.size(0)//2:]
+    return x0, x1
 
 @torch.no_grad()
+def _generate(is_bart, model, x, beam_size):
+    max_len = min(5*x['input_ids'].size(1), 512)
+    try:
+        if is_bart:
+            out = model.generate(
+                **x,
+                max_length=max_len,
+                decoder_start_token_id=0,
+                num_beams=beam_size,
+                num_return_sequences=beam_size)
+        else:
+            out = model.generate(
+                **x,
+                max_length=max_len,
+                forced_bos_token_id=0,
+                num_beams=beam_size,
+                num_return_sequences=beam_size)
+            out = out[:,1:]
+        return out
+    except RuntimeError as e:
+        if "out of memory" in str(e):
+            msg = "OOM: input_ids {}".format(x['input_ids'].size())
+            if x['input_ids'].size(0) >= 2:
+                return msg
+        raise e
+
+def generate(is_bart, model, x, beam_size):
+    ret = _generate(is_bart, model, x, beam_size)
+    if isinstance(ret, str):
+        print (ret)
+        torch.cuda.empty_cache()
+        x0, x1 = split_oom(x)
+        out0 = generate(is_bart, model, x0, beam_size)
+        out1 = generate(is_bart, model, x1, beam_size)
+        out_shape = out0.size(0) + out1.size(0), max(out0.size(1),  out1.size(1))
+        out = out0.new_full(out_shape, model.config.pad_token_id)
+        out[:out0.size(0), :out0.size(1)] = out0
+        out[out0.size(0):, :out1.size(1)] = out1
+        return out
+    else:
+        return ret
+                      
 def predict_amrs(
         loader, model, tokenizer, beam_size=1, tokens=None, restore_name_ops=False, return_all=False):
 
@@ -35,22 +84,7 @@ def predict_amrs(
             for x, y, extra in loader:
                 ii = extra['ids']
                 ids.extend(ii)
-                max_len = min(5*x['input_ids'].size(1), 512)
-                if is_bart:
-                    out = model.generate(
-                        **x,
-                        max_length=max_len,
-                        decoder_start_token_id=0,
-                        num_beams=beam_size,
-                        num_return_sequences=beam_size)
-                else:
-                    out = model.generate(
-                        **x,
-                        max_length=max_len,
-                        forced_bos_token_id=0,
-                        num_beams=beam_size,
-                        num_return_sequences=beam_size)
-                    out = out[:,1:]
+                out = generate(is_bart, model, x, beam_size)
                 nseq = len(ii)
                 for i1 in range(0, out.size(0), beam_size):
                     tokens_same_source = []
