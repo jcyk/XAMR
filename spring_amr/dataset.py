@@ -52,12 +52,10 @@ class AMRDataset(Dataset):
             if remove_longer_than and len(l) > remove_longer_than:
                 discarded += 1
                 continue
-            
-            if x.size(0) / len(l) > 5.:
-               logger.warning('bad training instance len(in):{}/len(out):{}'.format(x.size(0), len(l)))
-               discarded += 1
-               continue
-
+            #if x.size(0) / len(l) > 6. or len(l) / x.size(0) > 6.:
+            #    logger.warning('bad training instance len(in):{}/len(out):{}'.format(x.size(0), len(l)))
+            #    discarded += 1
+            #    continue
             if len(l) > 1024:
                 discarded += 1
                 logger.warning('Sequence longer than 1024 included. BART does not support it!')

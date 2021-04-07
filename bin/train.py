@@ -55,6 +55,8 @@ def do_train(local_rank, args, config, where_checkpoints):
         raw_graph=config.get('raw_graph', False)
     )
 
+    model = idist.auto_model(model)
+
     if checkpoint is not None:
         logger.info(f'Checkpoint restored ({checkpoint})!')
 
@@ -66,6 +68,8 @@ def do_train(local_rank, args, config, where_checkpoints):
 
     if checkpoint is not None:
         optimizer.load_state_dict(torch.load(checkpoint)['optimizer'])
+
+    optimizer = idist.auto_optim(optimizer)
 
     if config['scheduler'] == 'cosine':
         scheduler = transformers.get_cosine_schedule_with_warmup(
@@ -115,11 +119,12 @@ def do_train(local_rank, args, config, where_checkpoints):
             loss = loss.item()
         except RuntimeError as e:
             if "out of memory" in str(e):
-                print (trainer.state.iteration, rank, "train OOM", x['input_ids'].size(), y['labels'].size())
+                print ("training OOM")
                 optimizer.zero_grad()
                 torch.cuda.empty_cache()
                 return 0.
             raise e
+
         return loss
 
     @torch.no_grad()
@@ -131,7 +136,7 @@ def do_train(local_rank, args, config, where_checkpoints):
             loss = loss.item()
         except RuntimeError as e:
             if "out of memory" in str(e):
-                print ("eval OOM", x['input_ids'].size(), y['labels'].size())
+                print ("eval OOM")
                 return 0.
             raise e
         return loss
@@ -146,7 +151,6 @@ def do_train(local_rank, args, config, where_checkpoints):
 
     @trainer.on(Events.ITERATION_COMPLETED(every=config['accum_steps']))
     def update(engine):
-        average_gradients(model)
         scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), config['grad_norm'])
         scaler.step(optimizer)
@@ -162,7 +166,9 @@ def do_train(local_rank, args, config, where_checkpoints):
         dev_loader.batch_size = config['batch_size']
         dev_loader.device = device
         if rank == 0:
-            to_save = {'model': model.state_dict(), 'optimizer': optimizer.state_dict()}
+            m = model.module if hasattr(model, "module") else model
+            o = optimizer.module if hasattr(optimizer, "module") else optimizer
+            to_save = {'model': m.state_dict(), 'optimizer': o.state_dict()}
             torch.save(to_save, where_checkpoints / 'last_ckpt')
         evaluator.run(dev_loader)
         torch.cuda.empty_cache()
@@ -291,22 +297,6 @@ def check_data(args, config):
     print (cnt, mx)
     assert True == False
 
-import torch.multiprocessing as mp
-import torch.distributed as dist
-
-def average_gradients(model):
-    size = float(dist.get_world_size())
-    for param in model.parameters():
-        if param.grad is not None:
-            dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
-            param.grad.data /= size
-
-def init_processes(local_rank, args, config, where_checkpoints, backend='nccl'):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '55555'
-    dist.init_process_group(backend, rank=local_rank, world_size=nprocs=config['nproc_per_node'])
-    do_train(local_rank, args, config, where_checkpoints)
-
 if __name__ == '__main__':
 
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -338,6 +328,7 @@ if __name__ == '__main__':
     where_checkpoints = root/str(len(list(root.iterdir())))
     where_checkpoints.mkdir()
     
-    mp.spawn(init_processes, args=(args, config, where_checkpoints, ), nprocs=config['nproc_per_node'])
+    with idist.Parallel(backend="nccl", nproc_per_node=config['nproc_per_node']) as parallel:
+        parallel.run(do_train, args, config, where_checkpoints)
 
 
