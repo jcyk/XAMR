@@ -119,10 +119,7 @@ def do_train(local_rank, args, config, where_checkpoints):
             loss = loss.item()
         except RuntimeError as e:
             if "out of memory" in str(e):
-                print ("training OOM")
-                optimizer.zero_grad()
-                torch.cuda.empty_cache()
-                return 0.
+                print (engine.state.iteration, rank, "train OOM", x['input_ids'].size(), y['labels'].size())
             raise e
 
         return loss
@@ -136,8 +133,7 @@ def do_train(local_rank, args, config, where_checkpoints):
             loss = loss.item()
         except RuntimeError as e:
             if "out of memory" in str(e):
-                print ("eval OOM")
-                return 0.
+                print (engine.state.iteration, rank, "eval OOM", x['input_ids'].size(), y['labels'].size())
             raise e
         return loss
 
