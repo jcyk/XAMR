@@ -8,7 +8,6 @@ from spring_amr import ROOT
 from spring_amr.evaluation import predict_amrs, compute_smatch
 from spring_amr.penman import encode
 from spring_amr.utils import instantiate_loader, instantiate_model_and_tokenizer
-from ignite.utils import setup_logger
 
 def load_spring_ckpt(model, checkpoint):
     model_ckpt = torch.load(checkpoint, map_location='cpu')['model']
