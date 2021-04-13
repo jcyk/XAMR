@@ -26,6 +26,7 @@ class AMRDataset(Dataset):
         remove_longer_than=None,
         remove_wiki=False,
         dereify=True,
+        evaluation=True,
         rank=0,
         world_size=1
     ):
@@ -43,24 +44,21 @@ class AMRDataset(Dataset):
         self.linearized_extra = []
         self.remove_longer_than = remove_longer_than
         discarded = 0
+        is_train = not evaluation
         for g in graphs:
             l, e = self.tokenizer.linearize(g)
             
 
             self.tokenizer.src_lang = g.metadata['snt_lang']
             x = self.tokenizer.encode(g.metadata['snt'], return_tensors='pt')[0]
-            if remove_longer_than and len(l) > remove_longer_than:
+            if is_train and remove_longer_than and len(l) > remove_longer_than:
                 discarded += 1
                 continue
-            if x.size(0) / len(l) > 5.:
+ 
+            if is_train and x.size(0) / len(l) > 5.:
                logger.warning('bad training instance len(in):{}/len(out):{}'.format(x.size(0), len(l)))
                discarded += 1
                continue
-
-            if len(l) > 1024:
-                discarded += 1
-                logger.warning('Sequence longer than 1024 included. BART does not support it!')
-                continue
 
             self.sentences.append(g.metadata['snt'])
             self.tokenized.append(x)

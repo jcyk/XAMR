@@ -280,7 +280,8 @@ def check_data(args, config):
     )
 
     cnt = 0
-    mx = 0
+    mx_io = 0
+    mx_oi = 0
     for x, y, extra in train_loader:
         #print (tokenizer.convert_ids_to_tokens(x["input_ids"][0]))
         #print (x["attention_mask"])
@@ -288,9 +289,10 @@ def check_data(args, config):
         #print (tokenizer.convert_ids_to_tokens(y["decoder_input_ids"][0]))
         il = x["input_ids"].size(1)
         ol = y["labels"].size(1)
-        mx = max(ol/il, mx)
+        mx_oi = max(ol/il, mx_oi)
+        mx_io = max(il/ol, mx_io)
         cnt += 1
-    print (cnt, mx)
+    print (cnt, mx_oi, mx_io)
     assert True == False
 
 if __name__ == '__main__':

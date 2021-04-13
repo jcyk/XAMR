@@ -160,6 +160,7 @@ def instantiate_loader(
         remove_longer_than=remove_longer_than,
         remove_wiki=remove_wiki,
         dereify=dereify,
+        evaluation=evaluation,
         rank=rank,
         world_size=world_size
     )
