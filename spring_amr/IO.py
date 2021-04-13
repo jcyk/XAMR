@@ -32,7 +32,8 @@ def read_raw_amr_data(
             pm_graphs = pm_load(path, dereify=dereify, remove_wiki=remove_wiki)
             for g in pm_graphs:
                 g.metadata["snt_lang"] = lang_code
-
+                if lang_code == "zh_CN":
+                    g.metadata["snt"] = ''.join(g.metadata["snt"].split())
             graphs.extend(pm_graphs)
 
     assert graphs

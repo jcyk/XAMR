@@ -108,6 +108,16 @@ def do_train(local_rank, args, config, where_checkpoints):
         dereify=config['dereify'],
     )
 
+    dev_gen_loader = instantiate_loader(
+        config['dev'],
+        tokenizer,
+        batch_size=config['batch_size'],
+        evaluation=True,
+        use_recategorization=config['use_recategorization'],
+        rank=rank,
+        world_size=world_size
+    )
+    dev_gen_loader.device = device
 
     def train_step(engine, batch):
         model.train()
@@ -159,7 +169,6 @@ def do_train(local_rank, args, config, where_checkpoints):
         log_msg = f"training epoch: {engine.state.epoch}, iteration {engine.state.iteration}"
         log_msg += f" | loss_amr: {engine.state.metrics['trn_amr_loss']:.3f}"
         logger.info(log_msg)
-        dev_loader.batch_size = config['batch_size']
         dev_loader.device = device
         if rank == 0:
             m = model.module if hasattr(model, "module") else model
@@ -175,19 +184,9 @@ def do_train(local_rank, args, config, where_checkpoints):
 
     if not config['best_loss']:
         @evaluator.on(Events.COMPLETED)
-        def smatch_eval(engine):
-            loader = instantiate_loader(
-                config['dev'],
-                tokenizer,
-                batch_size=config['batch_size']//2,
-                evaluation=True,
-                use_recategorization=config['use_recategorization'],
-                rank=rank,
-                world_size=world_size
-            )
-            loader.device = device 
+        def smatch_eval(engine): 
             graphs = predict_amrs(
-                loader,
+                dev_gen_loader,
                 model,
                 tokenizer,
                 beam_size=config['beam_size'],
@@ -269,7 +268,7 @@ def check_data(args, config):
     )
 
     train_loader = instantiate_loader(
-        config['test'],
+        config['train'],
         tokenizer,
         batch_size=config['batch_size'],
         evaluation=False,
@@ -283,7 +282,9 @@ def check_data(args, config):
     mx_io = 0
     mx_oi = 0
     for x, y, extra in train_loader:
-        #print (tokenizer.convert_ids_to_tokens(x["input_ids"][0]))
+        #print (tokenizer.convert_ids_to_tokens(x["input_ids"][-1]))
+        #print (tokenizer.convert_ids_to_tokens(x["input_ids_en"][-1]))
+        #print (extra['sentences'][-1])
         #print (x["attention_mask"])
         #print (tokenizer.convert_ids_to_tokens(y["labels"][0]))
         #print (tokenizer.convert_ids_to_tokens(y["decoder_input_ids"][0]))
@@ -292,6 +293,7 @@ def check_data(args, config):
         mx_oi = max(ol/il, mx_oi)
         mx_io = max(il/ol, mx_io)
         cnt += 1
+        #print("-"*55)
     print (cnt, mx_oi, mx_io)
     assert True == False
 
@@ -328,5 +330,3 @@ if __name__ == '__main__':
     
     with idist.Parallel(backend="nccl", nproc_per_node=config['nproc_per_node']) as parallel:
         parallel.run(do_train, args, config, where_checkpoints)
-
-

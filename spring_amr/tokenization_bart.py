@@ -195,7 +195,13 @@ class AMRBartTokenizer(BartTokenizer):
             batch_extra = {}
 
         input_ids = pad_sequence(tokenized, batch_first=True, padding_value=self.pad_token_id)
-        batch = {'input_ids':input_ids, 'attention_mask':torch.ne(input_ids, self.pad_token_id).to(torch.int64)} 
+        batch = {'input_ids':input_ids, 'attention_mask':torch.ne(input_ids, self.pad_token_id).to(torch.int64)}
+        if 'tokenized_ids_en' in extras[0]:
+            tokenized_en = [extra['tokenized_ids_en'] for extra in extras]
+            input_ids_en = pad_sequence(tokenized_en, batch_first=True, padding_value=self.pad_token_id)
+            attention_mask_en = torch.ne(input_ids_en, self.pad_token_id).to(torch.int64)
+            batch['input_ids_en'] = input_ids_en
+            batch['attention_mask_en'] = attention_mask_en
         batch = {k: v.to(device) for k, v in batch.items()}
         return batch, batch_extra 
 

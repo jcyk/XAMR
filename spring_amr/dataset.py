@@ -40,6 +40,8 @@ class AMRDataset(Dataset):
         self.graphs = []
         self.sentences = []
         self.tokenized = []
+        self.sentences_en = []
+        self.tokenized_en = []
         self.linearized = []
         self.linearized_extra = []
         self.remove_longer_than = remove_longer_than
@@ -56,10 +58,20 @@ class AMRDataset(Dataset):
                 continue
  
             if is_train and x.size(0) / len(l) > 5.:
-               logger.warning('bad training instance len(in):{}/len(out):{}'.format(x.size(0), len(l)))
-               discarded += 1
-               continue
+                logger.warning('bad training instance len(in):{}/len(out):{}'.format(x.size(0), len(l)))
+                discarded += 1
+                continue
 
+            token_en = g.metadata.get('tok-en', None)
+            if token_en:
+                self.tokenizer.src_lang = "en_XX"
+                x_en = self.tokenizer.encode(token_en, return_tensors='pt')[0]
+            else:
+                token_en = g.metadata['snt']
+                x_en = x
+            self.sentences_en.append(token_en)
+            self.tokenized_en.append(x_en)
+            
             self.sentences.append(g.metadata['snt'])
             self.tokenized.append(x)
             self.graphs.append(g)
@@ -67,6 +79,7 @@ class AMRDataset(Dataset):
             self.linearized_extra.append(e)
 
         logger.info('the number of instances {}, discarded {}'.format(len(self.sentences), discarded))
+    
     def __len__(self):
         return len(self.sentences)
     
@@ -75,13 +88,13 @@ class AMRDataset(Dataset):
         sample['id'] = idx
         sample['sentence'] = self.sentences[idx]
         sample["tokenized_ids"] = self.tokenized[idx]
-        if self.linearized is not None:
+        if self.linearized:
             sample['linearized_graphs_ids'] = self.linearized[idx]
-            sample.update(self.linearized_extra[idx])            
+            sample.update(self.linearized_extra[idx])
+        if self.tokenized_en:
+            sample['tokenized_ids_en'] = self.tokenized_en[idx]
+            sample['sentence_en'] = self.sentences_en[idx]
         return sample
-    
-    def size(self, sample):
-        return len(sample['linearized_graphs_ids'])
     
     def collate_fn(self, samples, device=torch.device('cpu')):
         x = [s['tokenized_ids'] for s in samples]
@@ -121,12 +134,11 @@ class AMRDatasetTokenBatcherAndLoader:
 
     def sampler(self):
         ids = list(range(len(self.dataset)))
-
         if self.shuffle:
             random.shuffle(ids)
         if self.sort:
             if self.shuffle:
-                lengths = [self.dataset.size(x) for x in self.dataset]
+                lengths = [len(x) for x in self.dataset.linearized]
             else:
                 lengths = [s.size(0) for s in self.dataset.tokenized]
             ids.sort(key=lambda x: -lengths[x])
@@ -149,7 +161,7 @@ class AMRDatasetTokenBatcherAndLoader:
 
         while ids:
             idx = ids.pop()
-            size = self.dataset.size(self.dataset[idx])
+            size = len(self.dataset.linearized[idx])
             cand_batch_ntokens = max(size, batch_longest) * (batch_nexamps + 1)
             if cand_batch_ntokens > self.batch_size and batch_ids:
                 yield discharge()
