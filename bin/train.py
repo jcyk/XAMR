@@ -52,7 +52,8 @@ def do_train(local_rank, args, config, where_checkpoints):
         penman_linearization=config['penman_linearization'],
         collapse_name_ops=config['collapse_name_ops'],
         use_pointer_tokens=config['use_pointer_tokens'],
-        raw_graph=config.get('raw_graph', False)
+        raw_graph=config.get('raw_graph', False),
+        my_model=True
     )
 
     model = idist.auto_model(model)

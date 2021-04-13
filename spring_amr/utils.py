@@ -3,7 +3,7 @@ from pathlib import Path
 
 import os, torch
 from transformers import AutoConfig, AutoModelForSeq2SeqLM
-
+from spring_amr.modeling import MyMBartForConditionalGeneration
 from spring_amr.dataset import AMRDataset, AMRDatasetTokenBatcherAndLoader
 from spring_amr.tokenization_bart import AMRBartTokenizer, PENMANBartTokenizer
 from spring_amr.tokenization_mbart50 import AMRMBart50Tokenizer, PENMANMBart50Tokenizer
@@ -19,6 +19,7 @@ def instantiate_model_and_tokenizer(
         penman_linearization = False,
         use_pointer_tokens = False,
         raw_graph = False,
+        my_model = False,
 ):
     if raw_graph:
         assert penman_linearization
@@ -59,10 +60,11 @@ def instantiate_model_and_tokenizer(
             use_pointer_tokens=use_pointer_tokens,
         )
 
+    ModelFactory = MyMBartForConditionalGeneration if my_model else AutoModelForSeq2SeqLM
     if from_pretrained:
-        model = AutoModelForSeq2SeqLM.from_pretrained(name, config=config)
+        model = ModelFactory.from_pretrained(name, config=config)
     else:
-        model = AutoModelForSeq2SeqLM.from_config(config)
+        model = ModelFactory.from_config(config)
 
     model.resize_token_embeddings(tokenizer.vocab_size)
 
