@@ -1,22 +1,27 @@
 from glob import glob
 from pathlib import Path
 
+import random
 import os, torch
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from transformers import MBartForConditionalGeneration
+from transformers import MBartForConditionalGeneration, MBartConfig
 
 
 class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
-    """
-    only used for training!!!
-    """
     def __init__(self, config: MBartConfig):
         super().__init__(config)
         self.es = False # encoder switch
         self.kd = False # knowledge distillation
+        self.es_strategy = None
+        self.kd_alpha = 0.5
+        self.kd_temperature = 1.
+    
+    def degenerate(self):
+        self.es = False
+        self.kd = False
 
     def _expand_mask(self, mask, dtype, tgt_len, split=None):
         """
@@ -55,6 +60,26 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
         output_hidden_states=None,
         return_dict=None,
     ):
+        if input_ids_t is None:
+            assert not (self.es or self.kd) 
+            return super().forward(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                decoder_input_ids=decoder_input_ids,
+                decoder_attention_mask=decoder_attention_mask,
+                head_mask=head_mask,
+                decoder_head_mask=decoder_head_mask,
+                encoder_outputs=encoder_outputs,
+                past_key_values=past_key_values,
+                inputs_embeds=inputs_embeds,
+                decoder_inputs_embeds=decoder_inputs_embeds,
+                labels=labels,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        assert (self.es or self.kd)
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -68,11 +93,12 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
             if decoder_input_ids is None:
                 decoder_input_ids = shift_tokens_right(labels, self.config.pad_token_id)
 
-        if self.kd:
+
+        if self.kd: 
             self.eval()
             with torch.no_grad():
                 outputs = self.model(
-                    input_ids_t,
+                    input_ids=input_ids_t,
                     attention_mask=attention_mask_t,
                     decoder_input_ids=decoder_input_ids,
                     encoder_outputs=encoder_outputs,
@@ -93,7 +119,7 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
             self.train()
 
         if self.es:
-            teacher_encoder_outputs = self.encoder(
+            teacher_encoder_outputs = self.model.encoder(
                 input_ids=input_ids_t,
                 attention_mask=attention_mask_t,
                 head_mask=head_mask,
@@ -104,7 +130,7 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
             )
 
         ##########
-        encoder_outputs = self.encoder(
+        encoder_outputs = self.model.encoder(
             input_ids=input_ids,
             attention_mask=attention_mask,
             head_mask=head_mask,
@@ -149,12 +175,12 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             masked_lm_loss = loss_fct(lm_logits.view(-1, self.config.vocab_size), labels.view(-1))
-            print (labels)
             if self.kd:
-                kl_loss = F.kl_div(lm_logits, F.softmax(teacher_lm_logits, dim=-1))
-                print (kl_loss.size())
-                masked_lm_loss =  masked_lm_loss + kl_loss
-
+                soft_log_probs = F.log_softmax(lm_logits/self.kd_temperature, dim=-1)
+                soft_labels = F.softmax(teacher_lm_logits/self.kd_temperature, dim=-1)
+                kd_loss = F.kl_div(soft_log_probs.view(-1, self.config.vocab_size), soft_labels.view(-1, self.config.vocab_size), reduction="batchmean") * (self.kd_temperature**2)
+                print (masked_lm_loss, kd_loss)
+                masked_lm_loss = (1 - self.kd_alpha) * masked_lm_loss + self.kd_alpha * kd_loss
         output = (lm_logits,) + outputs[1:]
         return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
 

@@ -3,8 +3,8 @@ set -e
 checkpoint=$1 #/apdcephfs/share_916081/jcykcai/nonono/mbart50/runs/2/best-smatch_checkpoint_30_0.8210.pt
 model=$2 #facebook/mbart-large-50
 
-LANGUAGES_codes=("de_DE" "zh_CN" "es_XX" "it_IT")
-LANGUAGES_names=("de" "zh" "es" "it")
+LANGUAGES_codes=("de_DE" "es_XX" "it_IT" "zh_CN")
+LANGUAGES_names=("de" "es" "it" "zh")
 dataset=/apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/test/mbart/test
 
 for i in $(seq 1 1 ${#LANGUAGES_codes[@]}); do
@@ -20,7 +20,7 @@ for i in $(seq 1 1 ${#LANGUAGES_codes[@]}); do
         --gold-path tmp-dev-gold.txt \
         --pred-path tmp-dev-pred.txt \
         --beam-size 5 \
-        --batch-size 500 \
+        --batch-size 5000 \
         --penman-linearization \
         --use-pointer-tokens
 done

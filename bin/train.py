@@ -27,6 +27,10 @@ from ignite.handlers import ModelCheckpoint, global_step_from_engine
 
 import ignite.distributed as idist
 from ignite.utils import setup_logger, manual_seed
+import logging
+
+
+logging.getLogger("penman").setLevel(logging.ERROR)
 
 def do_train(local_rank, args, config, where_checkpoints):
 
@@ -123,9 +127,22 @@ def do_train(local_rank, args, config, where_checkpoints):
     def train_step(engine, batch):
         model.train()
         x, y, extra = batch
+        #### configure the traininig
+        m = model.module if hasattr(model, "module") else model
+        m.degenerate()
+        if engine.state.iteration > config["kd_start_after"]:
+            m.kd = config["kd"]
+        if engine.state.iteration > config["es_start_after"]:
+            m.es = config["es"]
+        input_ids_t = None
+        attention_mask_t = None
+        if m.kd or m.es:
+            input_ids_t=extra['input_ids_en']
+            attention_mask_t=extra['attention_mask_en']
+        ####
         try:
             with autocast(enabled=fp16):
-                loss, *_ = model(**x, **y)
+                loss, *_ = model(**x, **y, input_ids_t=input_ids_t, attention_mask_t=attention_mask_t)
             scaler.scale((loss / config['accum_steps'])).backward()
             loss = loss.item()
         except RuntimeError as e:
@@ -176,6 +193,8 @@ def do_train(local_rank, args, config, where_checkpoints):
             o = optimizer.module if hasattr(optimizer, "module") else optimizer
             to_save = {'model': m.state_dict(), 'optimizer': o.state_dict()}
             torch.save(to_save, where_checkpoints / 'last_ckpt')
+        # back to a normal seq2seq model for testing
+        (model.module if hasattr(model, "module") else model).degenerate()
         evaluator.run(dev_loader)
         torch.cuda.empty_cache()
 
