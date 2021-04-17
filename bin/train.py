@@ -59,7 +59,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         collapse_name_ops=config['collapse_name_ops'],
         use_pointer_tokens=config['use_pointer_tokens'],
         raw_graph=config.get('raw_graph', False),
-        my_model=True 
+        my_model=True
     )
 
     model = idist.auto_model(model)
@@ -134,8 +134,11 @@ def do_train(local_rank, args, config, where_checkpoints):
         m.degenerate()
         if args.kd and engine.state.iteration > args.kd_start_after*config['accum_steps']:
             m.kd = True
+            m.kd_alpha = args.kd_alpha
+            m.kd_temperature = args.kd_temperature
         if args.es and engine.state.iteration > args.es_start_after*config['accum_steps']:
             m.es = True
+            m.es_strategy = args.es_strategy
         input_ids_t = None
         attention_mask_t = None
         if m.kd or m.es:
@@ -371,9 +374,14 @@ if __name__ == '__main__':
 
     # our innovations
     parser.add_argument('--kd', action='store_true')
-    parser.add_argument('--es', action='store_true')
     parser.add_argument('--kd_start_after', type=int, default=0)
+    parser.add_argument('--kd_alpha', type=float, default=0.5)
+    parser.add_argument('--kd_temperature', type=float, default=1.)
+
+    parser.add_argument('--es', action='store_true')
     parser.add_argument('--es_start_after', type=int, default=0)
+    parser.add_argument('--es_strategy', type=str, default=None)
+    
     args, extra_args = parser.parse_known_args()
 
     if args.fp16 and autocast_available:
