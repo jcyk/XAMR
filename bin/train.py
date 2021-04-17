@@ -1,4 +1,6 @@
 from pathlib import Path
+from glob import glob
+from distutils.util import strtobool
 
 import torch
 try:
@@ -41,7 +43,7 @@ def do_train(local_rank, args, config, where_checkpoints):
 
     fp16 = args.fp16
     
-    logger = setup_logger(name="Training")
+    logger = setup_logger(name="Training", filepath=where_checkpoints / 'log')
     logger.info(config)
 
 
@@ -57,7 +59,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         collapse_name_ops=config['collapse_name_ops'],
         use_pointer_tokens=config['use_pointer_tokens'],
         raw_graph=config.get('raw_graph', False),
-        my_model=True
+        my_model=True 
     )
 
     model = idist.auto_model(model)
@@ -72,7 +74,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         weight_decay=config['weight_decay'])
 
     if checkpoint is not None:
-        optimizer.load_state_dict(torch.load(checkpoint)['optimizer'])
+        optimizer.load_state_dict(torch.load(checkpoint, map_location='cpu')['optimizer'])
 
     optimizer = idist.auto_optim(optimizer)
 
@@ -107,7 +109,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         config['dev'],
         tokenizer,
         batch_size=config['batch_size'],
-        evaluation=True, out=dev_gold_path if rank==0 else None,
+        evaluation=True,
         use_recategorization=config['use_recategorization'],
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
@@ -116,8 +118,8 @@ def do_train(local_rank, args, config, where_checkpoints):
     dev_gen_loader = instantiate_loader(
         config['dev'],
         tokenizer,
-        batch_size=config['batch_size'],
-        evaluation=True,
+        batch_size=4*config['batch_size'],
+        evaluation=True, out=dev_gold_path if rank==0 else None,
         use_recategorization=config['use_recategorization'],
         rank=rank,
         world_size=world_size
@@ -130,10 +132,10 @@ def do_train(local_rank, args, config, where_checkpoints):
         #### configure the traininig
         m = model.module if hasattr(model, "module") else model
         m.degenerate()
-        if engine.state.iteration > config["kd_start_after"]:
-            m.kd = config["kd"]
-        if engine.state.iteration > config["es_start_after"]:
-            m.es = config["es"]
+        if args.kd and engine.state.iteration > args.kd_start_after*config['accum_steps']:
+            m.kd = True
+        if args.es and engine.state.iteration > args.es_start_after*config['accum_steps']:
+            m.es = True
         input_ids_t = None
         attention_mask_t = None
         if m.kd or m.es:
@@ -198,42 +200,76 @@ def do_train(local_rank, args, config, where_checkpoints):
         evaluator.run(dev_loader)
         torch.cuda.empty_cache()
 
+    def smatch_eval(gen_loader): 
+        graphs = predict_amrs(
+            gen_loader,
+            model,
+            tokenizer,
+            beam_size=config['beam_size'],
+            restore_name_ops=config['collapse_name_ops']
+        )
+        
+        pieces = [encode(g) for g in graphs]
+        pred_path = Path(str(dev_pred_path) + str(rank))
+        pred_path.write_text('\n\n'.join(pieces))
+
+        idist.barrier()
+        if rank == 0:
+            pred_pieces = []
+            tot = 0
+            for rk in range(world_size):
+                pred_path = Path(str(dev_pred_path) + str(rk))
+                pred_pieces.append(pred_path.open().read().split('\n\n'))
+                tot += len(pred_pieces[-1])
+                pred_path.unlink()
+            pieces = [ pred_pieces[i%world_size][i//world_size] for i in range(tot) ]
+            dev_pred_path.write_text('\n\n'.join(pieces))
+            #write_predictions(dev_pred_path, tokenizer, graphs)
+        idist.barrier()
+        try:
+            smatch = compute_smatch(dev_gold_path, dev_pred_path)
+        except:
+            smatch = 0.
+        return smatch
+
+    @trainer.on(Events.COMPLETED)
+    def do_test(engine):
+        # search & load the best ckpt
+        # also return smatch score for each test file and log
+        logger.info('testing started!')
+        paths = []
+        glob_pattn = config['test']
+        if isinstance(glob_pattn, str) or isinstance(glob_pattn, Path):
+            glob_pattn = [glob_pattn]
+        for gpattn in glob_pattn:
+            paths += [Path(p) for p in glob(gpattn)]
+
+        for x in where_checkpoints.iterdir():
+            if str(x).endswith('.pt'):
+                (model.module if hasattr(model, "module") else model).load_state_dict(torch.load(x, map_location='cpu')['model'])
+                for path in paths:
+                    test_gen_loader = instantiate_loader(
+                        path, 
+                        tokenizer,
+                        batch_size=4*config['batch_size'],
+                        evaluation=True,
+                        use_recategorization=config['use_recategorization'],
+                        rank=rank,
+                        world_size=world_size
+                    )
+                    test_gen_loader.device = device
+                    smatch = smatch_eval(test_gen_loader)
+                    log_msg = f"test {x} {path} {smatch}"
+                    logger.info(log_msg)                    
+
     @evaluator.on(Events.STARTED)
     def evaluate(engine):
         logger.info('evaluating started!')
 
     if not config['best_loss']:
         @evaluator.on(Events.COMPLETED)
-        def smatch_eval(engine): 
-            graphs = predict_amrs(
-                dev_gen_loader,
-                model,
-                tokenizer,
-                beam_size=config['beam_size'],
-                restore_name_ops=config['collapse_name_ops']
-            )
-            
-            pieces = [encode(g) for g in graphs]
-            pred_path = Path(str(dev_pred_path) + str(rank))
-            pred_path.write_text('\n\n'.join(pieces))
-
-            idist.barrier()
-            if rank == 0:
-                pred_pieces = []
-                tot = 0
-                for rk in range(world_size):
-                    pred_path = Path(str(dev_pred_path) + str(rk))
-                    pred_pieces.append(pred_path.open().read().split('\n\n'))
-                    tot += len(pred_pieces[-1])
-                    pred_path.unlink()
-                pieces = [ pred_pieces[i%world_size][i//world_size] for i in range(tot) ]
-                dev_pred_path.write_text('\n\n'.join(pieces))
-                #write_predictions(dev_pred_path, tokenizer, graphs)
-            idist.barrier()
-            try:
-                smatch = compute_smatch(dev_gold_path, dev_pred_path)
-            except:
-                smatch = 0.
+        def do_eval(engine):
+            smatch = smatch_eval(dev_gen_loader)
             engine.state.metrics['dev_smatch'] = smatch
 
     @evaluator.on(Events.COMPLETED)
@@ -264,7 +300,7 @@ def do_train(local_rank, args, config, where_checkpoints):
             prefix,
             n_saved=1,
             create_dir=True,
-            score_function=score_function,
+            score_function=score_function, 
             global_step_transform=global_step_from_engine(trainer),
         )
         evaluator.add_event_handler(Events.COMPLETED, handler, to_save)
@@ -288,7 +324,7 @@ def check_data(args, config):
     )
 
     train_loader = instantiate_loader(
-        config['train'],
+        config['test'],
         tokenizer,
         batch_size=config['batch_size'],
         evaluation=False,
@@ -333,7 +369,12 @@ if __name__ == '__main__':
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--ROOT', type=Path)
 
-    args, unknown = parser.parse_known_args()
+    # our innovations
+    parser.add_argument('--kd', action='store_true')
+    parser.add_argument('--es', action='store_true')
+    parser.add_argument('--kd_start_after', type=int, default=0)
+    parser.add_argument('--es_start_after', type=int, default=0)
+    args, extra_args = parser.parse_known_args()
 
     if args.fp16 and autocast_available:
         raise ValueError('You\'ll need a newer PyTorch version to enable fp16 training.')
@@ -341,12 +382,18 @@ if __name__ == '__main__':
     with args.config.open() as y:
         config = yaml.load(y, Loader=yaml.FullLoader)
 
+    # update config from cmd line
+    for k, v in zip(extra_args[0::2], extra_args[1::2]):
+        k = k[2:]
+        assert k in config, "unknown argument: {}".format(k)
+        if k in config:
+            config[k] = type(config[k])(v) if not isinstance(config[k], bool) else bool(strtobool(v))
     #check_data(args, config)
 
-    root = args.ROOT/'runs'
+    root = args.ROOT
     root.mkdir(parents=True, exist_ok=True)
     where_checkpoints = root/str(len(list(root.iterdir())))
     where_checkpoints.mkdir()
-    
+
     with idist.Parallel(backend="nccl", nproc_per_node=config['nproc_per_node']) as parallel:
         parallel.run(do_train, args, config, where_checkpoints)

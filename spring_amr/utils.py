@@ -149,7 +149,7 @@ def instantiate_loader(
     if isinstance(glob_pattn, str) or isinstance(glob_pattn, Path):
         glob_pattn = [glob_pattn]
     for gpattn in glob_pattn:
-        paths += [Path(p) for p in glob(gpattn)]
+        paths += [Path(p) for p in glob(str(gpattn))]
 
     paths.sort()
     if out is not None:

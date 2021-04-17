@@ -5,7 +5,7 @@ model=$2 #facebook/mbart-large-50
 
 LANGUAGES_codes=("de_DE" "es_XX" "it_IT" "zh_CN")
 LANGUAGES_names=("de" "es" "it" "zh")
-dataset=/apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/test/mbart/test
+dataset=/apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/test/opus/test
 
 for i in $(seq 1 1 ${#LANGUAGES_codes[@]}); do
     code=${LANGUAGES_codes[$i-1]}

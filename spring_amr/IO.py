@@ -34,6 +34,8 @@ def read_raw_amr_data(
                 g.metadata["snt_lang"] = lang_code
                 if lang_code == "zh_CN":
                     g.metadata["snt"] = ''.join(g.metadata["snt"].split())
+            #TODO remove zh?
+            if lang_code == "zh_CN": continue
             graphs.extend(pm_graphs)
 
     assert graphs

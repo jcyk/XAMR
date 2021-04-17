@@ -30,14 +30,14 @@ dereify: False
 collapse_name_ops: False
 
 # Hparams
-batch_size: 12500
+batch_size: 200
 beam_size: 5
 dropout: 0.25
 attention_dropout: 0.0
 smart_init: True
 eval_every: 1000
 accum_steps: 1
-nproc_per_node: 4
+nproc_per_node: 2
 warmup_steps: 1
 training_steps: 250000
 weight_decay: 0.004
@@ -55,6 +55,6 @@ seed: 19940117
 
 # <------------------
 # Data: replace DATA below with the root of your AMR 2/3 release folder
-train: /apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/dev/opus/*.txt
-dev: /apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/dev/opus/*.txt
+train: /apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/test/*.txt
+dev: /apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/dev/opus/dev_de.txt
 test: /apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/test/*.txt
