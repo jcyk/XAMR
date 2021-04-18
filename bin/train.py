@@ -255,15 +255,15 @@ def do_train(local_rank, args, config, where_checkpoints):
                         path, 
                         tokenizer,
                         batch_size=4*config['batch_size'],
-                        evaluation=True,
+                        evaluation=True, out=dev_gold_path if rank==0 else None,
                         use_recategorization=config['use_recategorization'],
                         rank=rank,
                         world_size=world_size
                     )
                     test_gen_loader.device = device
                     smatch = smatch_eval(test_gen_loader)
-                    log_msg = f"test {x} {path} {smatch}"
-                    logger.info(log_msg)                    
+                    log_msg = f"test {x} {path} {smatch:.3f}"
+                    logger.info(log_msg)
 
     @evaluator.on(Events.STARTED)
     def evaluate(engine):

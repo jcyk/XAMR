@@ -9,7 +9,7 @@ def read_raw_amr_data(
         dereify=True,
         remove_wiki=False,
 ):
-    assert paths
+    #assert paths
 
     if not isinstance(paths, Iterable):
         paths = [paths]
@@ -34,11 +34,9 @@ def read_raw_amr_data(
                 g.metadata["snt_lang"] = lang_code
                 if lang_code == "zh_CN":
                     g.metadata["snt"] = ''.join(g.metadata["snt"].split())
-            #TODO remove zh?
-            if lang_code == "zh_CN": continue
             graphs.extend(pm_graphs)
 
-    assert graphs
+    #assert graphs
     
     if use_recategorization:
         for g in graphs:
