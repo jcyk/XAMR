@@ -218,27 +218,6 @@ class AMRMBart50Tokenizer(MBart50Tokenizer):
         bpe_backreferences = [0] + [b+1 for bb in bpe_backreferences for b in bb]
         return bpe_tokens, bpe_token_ids, bpe_backreferences
 
-    def batch_encode_sentences_from_tokenized(self, tokenized, extras=None, device=torch.device('cpu')):
-        if extras is not None:
-            batch_extra = {'sentences': []}
-            for extra in extras:
-                batch_extra['sentences'].append(extra['sentence'])
-        else:
-            batch_extra = {}
-
-        input_ids = pad_sequence(tokenized, batch_first=True, padding_value=self.pad_token_id)
-        batch = {'input_ids':input_ids, 'attention_mask':torch.ne(input_ids, self.pad_token_id).to(torch.int64)}
-        if 'tokenized_ids_en' in extras[0]:
-            tokenized_en = [extra['tokenized_ids_en'] for extra in extras]
-            input_ids_en = pad_sequence(tokenized_en, batch_first=True, padding_value=self.pad_token_id
-)
-            attention_mask_en = torch.ne(input_ids_en, self.pad_token_id).to(torch.int64)
-            batch_extra['input_ids_en'] = input_ids_en.to(device)
-            batch_extra['attention_mask_en'] = attention_mask_en.to(device)
-        batch = {k: v.to(device) for k, v in batch.items()}
-        return batch, batch_extra
-      
-    
     def linearize(self, graph):
         shift = self.vocab_size
         tokens, token_ids, backreferences = self.tokenize_amr(graph)

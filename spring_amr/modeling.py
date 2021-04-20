@@ -10,6 +10,44 @@ from torch.nn import CrossEntropyLoss
 from transformers import MBartForConditionalGeneration, MBartConfig
 
 
+def get_teacher_logits(
+    teacher,
+    input_ids=None,
+    attention_mask=None,
+    decoder_input_ids=None,
+    decoder_attention_mask=None,
+    head_mask=None,
+    decoder_head_mask=None,
+    encoder_outputs=None,
+    past_key_values=None,
+    inputs_embeds=None,
+    decoder_inputs_embeds=None,
+    labels=None,
+    use_cache=None,
+    output_attentions=None,
+    output_hidden_states=None,
+    return_dict=None,
+):
+    teacher.eval()
+    with torch.no_grad():
+        outputs = teacher(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            decoder_input_ids=decoder_input_ids,
+            encoder_outputs=encoder_outputs,
+            decoder_attention_mask=decoder_attention_mask,
+            head_mask=head_mask,
+            decoder_head_mask=decoder_head_mask,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            decoder_inputs_embeds=decoder_inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+    return output[1].detach()
+
 class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
     def __init__(self, config: MBartConfig):
         super().__init__(config)
@@ -45,8 +83,9 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
         self,
         input_ids=None,
         attention_mask=None,
-        input_ids_t=None, # teacher
-        attention_mask_t=None, # teacher
+        input_ids_en=None, # encoder switch
+        attention_mask_en=None, # encoder switch
+        teacher_lm_logits=None, # teacher
         decoder_input_ids=None,
         decoder_attention_mask=None,
         head_mask=None,
@@ -61,8 +100,8 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
         output_hidden_states=None,
         return_dict=None,
     ):
-        if input_ids_t is None:
-            assert not (self.es or self.kd) 
+
+        if not (self.es or self.kd) 
             return super().forward(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
@@ -80,7 +119,13 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
-        assert (self.es or self.kd)
+        else:
+            if self.es:
+                assert input_ids_en is not None
+
+            if self.kd:
+                assert teacher_lm_logits is not None
+
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -94,35 +139,10 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
             if decoder_input_ids is None:
                 decoder_input_ids = shift_tokens_right(labels, self.config.pad_token_id)
 
-
-        if self.kd: 
-            self.eval()
-            with torch.no_grad():
-                outputs = self.model(
-                    input_ids=input_ids_t,
-                    attention_mask=attention_mask_t,
-                    decoder_input_ids=decoder_input_ids,
-                    encoder_outputs=encoder_outputs,
-                    decoder_attention_mask=decoder_attention_mask,
-                    head_mask=head_mask,
-                    decoder_head_mask=decoder_head_mask,
-                    past_key_values=past_key_values,
-                    inputs_embeds=inputs_embeds,
-                    decoder_inputs_embeds=decoder_inputs_embeds,
-                    use_cache=use_cache,
-                    output_attentions=output_attentions,
-                    output_hidden_states=output_hidden_states,
-                    return_dict=return_dict,
-                )
-                teacher_lm_logits = self.lm_head(outputs[0]) + self.final_logits_bias
-                teacher_lm_logits = teacher_lm_logits.detach()
-                del outputs
-            self.train()
-
         if self.es:
             teacher_encoder_outputs = self.model.encoder(
-                input_ids=input_ids_t,
-                attention_mask=attention_mask_t,
+                input_ids=input_ids_en,
+                attention_mask=attention_mask_en,
                 head_mask=head_mask,
                 inputs_embeds=inputs_embeds,
                 output_attentions=output_attentions,
@@ -146,7 +166,7 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
             encoder_hidden_states = torch.cat([encoder_outputs[0], teacher_encoder_outputs[0]], dim=1)
             assert encoder_hidden_states.size() == (student_shape[0], student_shape[1]+teacher_shape[1], student_shape[2])
             assert encoder_hidden_states.size() == (teacher_shape[0], student_shape[1]+teacher_shape[1], teacher_shape[2])
-            encoder_attention_mask = torch.cat([attention_mask, attention_mask_t], dim=1)
+            encoder_attention_mask = torch.cat([attention_mask, attention_mask_en], dim=1)
         else:
             encoder_hidden_states = encoder_outputs[0]
             encoder_attention_mask = attention_mask

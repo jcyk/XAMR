@@ -63,11 +63,27 @@ def do_train(local_rank, args, config, where_checkpoints):
         my_model=True
     )
 
-    model = idist.auto_model(model)
-
     if checkpoint is not None:
         logger.info(f'Checkpoint restored ({checkpoint})!')
 
+    model = idist.auto_model(model)
+
+    if args.kd:
+        teacher, teacher_tokenizer = instantiate_model_and_tokenizer(
+            args.teacher_model,
+            checkpoint=args.teacher_checkpoint,
+            additional_tokens_smart_init=config['smart_init'],
+            dropout=config['dropout'],
+            attention_dropout=config['attention_dropout'],
+            from_pretrained=config['warm_start'],
+            penman_linearization=config['penman_linearization'],
+            collapse_name_ops=config['collapse_name_ops'],
+            use_pointer_tokens=config['use_pointer_tokens'],
+            raw_graph=config.get('raw_graph', False),
+        )
+        teacher = idist.auto_model(teacher)
+        if not (args.kd and args.teacher_model != config['model']):
+            teacher_tokenizer = None
     
     optimizer = RAdam(
         model.parameters(),
@@ -102,6 +118,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         remove_longer_than=config['remove_longer_than'],
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
+        teacher_tokenizer=teacher_tokenizer if args.kd else None,
     )
 
     dev_gold_path = where_checkpoints / 'tmp-dev-gold.txt'
@@ -140,15 +157,22 @@ def do_train(local_rank, args, config, where_checkpoints):
         if args.es and engine.state.iteration < args.es_stop_after*config['accum_steps']:
             m.es = True
             m.es_rate = 0.8 * (1.0 - engine.state.iteration/args.es_stop_after*config['accum_steps'])
-        input_ids_t = None
-        attention_mask_t = None
-        if m.kd or m.es:
-            input_ids_t=extra['input_ids_en']
-            attention_mask_t=extra['attention_mask_en']
+        
+        input_ids_en = extra['input_ids_en'] if m.es else None
+        attention_mask_en = extra['attention_mask_en'] if m.es else None
+        teacher_lm_logits = None
+        if kd:
+            teacher_lm_logits = get_teacher_logits(teacher,
+                input_ids=extra['input_ids_teacher'],
+                attention_mask=extra['attention_mask_teacher'],
+                **y)
         ####
         try:
             with autocast(enabled=fp16):
-                loss, *_ = model(**x, **y, input_ids_t=input_ids_t, attention_mask_t=attention_mask_t)
+                loss, *_ = model(**x, **y,
+                    input_ids_en=input_ids_en,
+                    attention_mask_en=attention_mask_en,
+                    teacher_lm_logits=teacher_lm_logits)
             scaler.scale((loss / config['accum_steps'])).backward()
             loss = loss.item()
         except RuntimeError as e:
@@ -378,6 +402,8 @@ if __name__ == '__main__':
     parser.add_argument('--kd_start_after', type=int, default=0)
     parser.add_argument('--kd_alpha', type=float, default=0.5)
     parser.add_argument('--kd_temperature', type=float, default=1.)
+    parser.add_argument('--teacher_model', type=str, default=None)
+    parser.add_argument('--teacher_checkpoint', type=str, default=None)
 
     parser.add_argument('--es', action='store_true')
     parser.add_argument('--es_stop_after', type=int, default=0)
@@ -396,6 +422,13 @@ if __name__ == '__main__':
         assert k in config, "unknown argument: {}".format(k)
         if k in config:
             config[k] = type(config[k])(v) if not isinstance(config[k], bool) else bool(strtobool(v))
+    
+    # self-distillation if teacher not specified
+    if args.teacher_model is None:
+        args.teacher_model = config['model']
+    if args.teacher_checkpoint is None:
+        args.teacher_checkpoint = config['checkpoint']
+
     #check_data(args, config)
 
     root = args.ROOT

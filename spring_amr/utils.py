@@ -142,6 +142,7 @@ def instantiate_loader(
         remove_longer_than=None,
         remove_wiki=False,
         dereify=True,
+        teacher_tokenizer=None,
         rank=0,
         world_size=1
 ):
@@ -165,6 +166,7 @@ def instantiate_loader(
         remove_wiki=remove_wiki,
         dereify=dereify,
         evaluation=evaluation,
+        teacher_tokenizer=teacher_tokenizer,
         rank=rank,
         world_size=world_size
     )
