@@ -152,6 +152,7 @@ def instantiate_loader(
         paths += [Path(p) for p in glob(str(gpattn))]
     #TODO ignore zh
     paths = [path for path in paths if not str(path).endswith('zh.txt')]
+
     paths.sort()
     if out is not None:
         Path(out).write_text(

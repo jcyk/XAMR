@@ -16,7 +16,8 @@ def reverse_direction(x, y, pad_token_id=1):
     return x, y
 
 class AMRDataset(Dataset):
-    
+    """ Note we use *{en,zh,es,it}.txt to indicate the right tokenization method (src_lang).
+    """
     def __init__(
         self,
         paths,

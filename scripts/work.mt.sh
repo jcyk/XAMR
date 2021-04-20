@@ -12,7 +12,6 @@ for i in $(seq 1 1 ${#LANGUAGES_codes[@]}); do
     name=${LANGUAGES_names[$i-1]}
     echo ${code}, ${name}
     PYTHONPATH=. python3 bin/predict_amrs.py \
-        --src_lang ${code} \
         --model ${model} \
         --checkpoint ${checkpoint} \
         --dataset ${dataset}_${name}2en.txt \

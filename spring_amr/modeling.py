@@ -15,7 +15,7 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
         super().__init__(config)
         self.es = False # encoder switch
         self.kd = False # knowledge distillation
-        self.es_strategy = None
+        self.es_rate = 0.
         self.kd_alpha = 0.5
         self.kd_temperature = 1.
     
@@ -33,8 +33,9 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
         expanded_mask = mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(dtype)
 
         if split is not None:
-            expanded_mask[:,:,0::2,:split] = 0.
-            expanded_mask[:,:,1::2,split:] = 0.
+            see_teacher = torch.bernoulli(expanded_mask.new_full((tgt_len,), self.es_rate)).bool()
+            expanded_mask[:,:,see_teacher,:split] = 0.
+            expanded_mask[:,:,~see_teacher,split:] = 0.
 
         inverted_mask = 1.0 - expanded_mask
 
@@ -179,7 +180,6 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
                 soft_log_probs = F.log_softmax(lm_logits/self.kd_temperature, dim=-1)
                 soft_labels = F.softmax(teacher_lm_logits/self.kd_temperature, dim=-1)
                 kd_loss = F.kl_div(soft_log_probs.view(-1, self.config.vocab_size), soft_labels.view(-1, self.config.vocab_size), reduction="batchmean") * (self.kd_temperature**2)
-                print (masked_lm_loss, kd_loss)
                 masked_lm_loss = (1 - self.kd_alpha) * masked_lm_loss + self.kd_alpha * kd_loss
         output = (lm_logits,) + outputs[1:]
         return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
