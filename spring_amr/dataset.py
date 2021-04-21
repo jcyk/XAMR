@@ -1,14 +1,17 @@
 import random
 import torch
+import tqdm
 from cached_property import cached_property
 from torch.utils.data import Dataset
 from spring_amr.IO import read_raw_amr_data
 from ignite.utils import setup_logger
+from torch.nn.utils.rnn import pad_sequence
 
-
-def to_tensor(samples, key_value, padding_value, device):
+def to_tensor(samples, key_value, padding_value, device, return_mask=True):
     tokenized = [s[key_value] for s in samples]
     input_ids = pad_sequence(tokenized, batch_first=True, padding_value=padding_value)
+    if not return_mask:
+        return input_ids.to(device)
     attention_mask = torch.ne(input_ids, padding_value).to(torch.int64)
     return input_ids.to(device), attention_mask.to(device)
 
@@ -52,15 +55,16 @@ class AMRDataset(Dataset):
         self.tokenized = []
         self.sentences_en = []
         self.tokenized_en = []
+        self.sentences_teacher = []
+        self.tokenized_teacher = []
         self.linearized = []
         self.linearized_extra = []
         self.remove_longer_than = remove_longer_than
         discarded = 0
         is_train = not evaluation
-        for g in graphs:
+        for g in tqdm.tqdm(graphs): 
             l, e = self.tokenizer.linearize(g)
             
-
             self.tokenizer.src_lang = g.metadata['snt_lang']
             x = self.tokenizer.encode(g.metadata['snt'], return_tensors='pt')[0]
             if is_train and remove_longer_than and len(l) > remove_longer_than:
@@ -71,9 +75,10 @@ class AMRDataset(Dataset):
                 logger.warning('bad training instance len(in):{}/len(out):{}'.format(x.size(0), len(l)))
                 discarded += 1
                 continue
-
+            
+            #####
             token_en = g.metadata.get('tok-en', None)
-            if token_en:
+            if token_en and g.metadata['snt_lang'] != "en_XX":
                 self.tokenizer.src_lang = "en_XX"
                 x_en = self.tokenizer.encode(token_en, return_tensors='pt')[0]
             else:
@@ -83,11 +88,11 @@ class AMRDataset(Dataset):
             self.tokenized_en.append(x_en)
 
             self.sentences_teacher.append(token_en)
-            
             if self.teacher_tokenizer is not None:
                 self.tokenized_teacher.append(self.teacher_tokenizer.encode(token_en, return_tensors='pt')[0])
             else:
                 self.tokenized_teacher.append(x_en)
+            ####
 
             self.sentences.append(g.metadata['snt'])
             self.tokenized.append(x)
@@ -95,6 +100,7 @@ class AMRDataset(Dataset):
             self.linearized.append(l)
             self.linearized_extra.append(e)
 
+        ### teacher_tokenizer is tokenizer if not given
         if self.teacher_tokenizer is None:
             self.teacher_tokenizer = self.tokenizer
 
@@ -125,20 +131,19 @@ class AMRDataset(Dataset):
         x = {'input_ids':input_ids, 'attention_mask':attention_mask}
         extra = {'sentences': [x['sentence'] for x in samples]}
         if 'linearized_graphs_ids' in samples[0]:
-            y = [s['linearized_graphs_ids'] for s in samples]
-            y, extra_y = self.tokenizer.batch_encode_graphs_from_linearized(y, samples, device=device)
-            extra.update(extra_y)
+            extra['graphs'] = [x['graphs'] for x in samples]
+            extra['linearized_graphs'] = [x['linearized_graphs'] for x in samples]
+            batch = to_tensor(samples, 'linearized_graphs_ids', self.tokenizer.pad_token_id, device, return_mask=False)
+            y = {'decoder_input_ids': batch[:, :-1].contiguous(), 'labels': batch[:, 1:].contiguous()}
         else:
             y = None
-        extra['ids'] = [s['id'] for s in samples]
-        for name in y:
-            y[name] = y[name].contiguous()
 
+        extra['ids'] = [s['id'] for s in samples]
         extra['input_ids_en'], extra['attention_mask_en'] = to_tensor(samples, 'tokenized_ids_en', self.tokenizer.pad_token_id, device)
         extra['input_ids_teacher'], extra['attention_mask_teacher'] = to_tensor(samples, 'tokenized_ids_teacher', self.teacher_tokenizer.pad_token_id, device)
         
         return x, y, extra
-    
+
 class AMRDatasetTokenBatcherAndLoader:
     
     def __init__(self, dataset, batch_size=800 ,device=torch.device('cpu'), shuffle=False, sort=True):

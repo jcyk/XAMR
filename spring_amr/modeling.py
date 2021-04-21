@@ -30,7 +30,7 @@ def get_teacher_logits(
 ):
     teacher.eval()
     with torch.no_grad():
-        outputs = teacher(
+        logits, *_ = teacher(
             input_ids=input_ids,
             attention_mask=attention_mask,
             decoder_input_ids=decoder_input_ids,
@@ -46,7 +46,9 @@ def get_teacher_logits(
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-    return output[1].detach()
+    logits = logits.detach()
+    del _
+    return logits
 
 class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
     def __init__(self, config: MBartConfig):
@@ -101,7 +103,7 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
         return_dict=None,
     ):
 
-        if not (self.es or self.kd) 
+        if not (self.es or self.kd): 
             return super().forward(
                 input_ids=input_ids,
                 attention_mask=attention_mask,

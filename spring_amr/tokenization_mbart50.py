@@ -230,28 +230,6 @@ class AMRMBart50Tokenizer(MBart50Tokenizer):
             token_uni_ids.append(self.eos_token_id)
             backreferences.append(len(backreferences))
         return token_uni_ids, extra
-        
-    def batch_encode_graphs(self, graphs, device=torch.device('cpu')):
-        linearized, extras = zip(*[self.linearize(g) for g in graphs])
-        return self.batch_encode_graphs_from_linearized(linearized, extras, device=device)
-    
-    def batch_encode_graphs_from_linearized(self, linearized, extras=None, device=torch.device('cpu')):
-        if extras is not None:
-            batch_extra = {'linearized_graphs': [], 'graphs': []}
-            for extra in extras:
-                batch_extra['graphs'].append(extra['graphs'])
-                batch_extra['linearized_graphs'].append(extra['linearized_graphs'])
-        else:
-            batch_extra = {}
-        maxlen = 0
-        batch = []
-        for token_uni_ids in linearized:
-            maxlen = max(len(token_uni_ids), maxlen)
-            batch.append(token_uni_ids)
-        batch = [x + [self.pad_token_id] * (maxlen - len(x)) for x in batch]
-        batch = torch.tensor(batch).to(device)
-        batch = {'decoder_input_ids': batch[:, :-1], 'labels': batch[:, 1:]}
-        return batch, batch_extra
 
     def decode_amr(self, tokens, restore_name_ops=False):
         try:

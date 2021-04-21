@@ -22,6 +22,7 @@ from spring_amr.optim import RAdam
 from spring_amr.evaluation import write_predictions, compute_smatch, predict_amrs, predict_sentences, compute_bleu
 from spring_amr.utils import instantiate_model_and_tokenizer, instantiate_loader
 from spring_amr.penman import encode
+from spring_amr.modeling import get_teacher_logits
 
 from ignite.engine import Engine, Events
 from ignite.metrics import RunningAverage
@@ -60,7 +61,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         collapse_name_ops=config['collapse_name_ops'],
         use_pointer_tokens=config['use_pointer_tokens'],
         raw_graph=config.get('raw_graph', False),
-        my_model=True
+        my_model=config['my_model']
     )
 
     if checkpoint is not None:
@@ -147,32 +148,35 @@ def do_train(local_rank, args, config, where_checkpoints):
     def train_step(engine, batch):
         model.train()
         x, y, extra = batch
-        #### configure the traininig
+        #### configure the traininig for my_model
+        input_ids_en, attention_mask_en = None, None
+        teacher_lm_logits = None
         m = model.module if hasattr(model, "module") else model
-        m.degenerate()
+        if config['my_model']:
+            m.degenerate()
         if args.kd and engine.state.iteration > args.kd_start_after*config['accum_steps']:
             m.kd = True
             m.kd_alpha = args.kd_alpha
             m.kd_temperature = args.kd_temperature
-        if args.es and engine.state.iteration < args.es_stop_after*config['accum_steps']:
-            m.es = True
-            m.es_rate = 0.8 * (1.0 - engine.state.iteration/args.es_stop_after*config['accum_steps'])
-        
-        input_ids_en = extra['input_ids_en'] if m.es else None
-        attention_mask_en = extra['attention_mask_en'] if m.es else None
-        teacher_lm_logits = None
-        if kd:
             teacher_lm_logits = get_teacher_logits(teacher,
                 input_ids=extra['input_ids_teacher'],
                 attention_mask=extra['attention_mask_teacher'],
                 **y)
+        if args.es and engine.state.iteration < args.es_stop_after*config['accum_steps']:
+            m.es = True
+            m.es_rate = 0.8 * (1.0 - engine.state.iteration/args.es_stop_after*config['accum_steps'])
+            input_ids_en = extra['input_ids_en']
+            attention_mask_en = extra['attention_mask_en']
         ####
         try:
             with autocast(enabled=fp16):
-                loss, *_ = model(**x, **y,
-                    input_ids_en=input_ids_en,
-                    attention_mask_en=attention_mask_en,
-                    teacher_lm_logits=teacher_lm_logits)
+                if config['my_model']:
+                    loss, *_ = model(**x, **y,
+                        input_ids_en=input_ids_en,
+                        attention_mask_en=attention_mask_en,
+                        teacher_lm_logits=teacher_lm_logits)
+                else:
+                    loss, *_ = model(**x, **y)
             scaler.scale((loss / config['accum_steps'])).backward()
             loss = loss.item()
         except RuntimeError as e:
@@ -224,7 +228,8 @@ def do_train(local_rank, args, config, where_checkpoints):
             to_save = {'model': m.state_dict(), 'optimizer': o.state_dict()}
             torch.save(to_save, where_checkpoints / 'last_ckpt')
         # back to a normal seq2seq model for testing
-        (model.module if hasattr(model, "module") else model).degenerate()
+        if config['my_model']:
+            (model.module if hasattr(model, "module") else model).degenerate()
         evaluator.run(dev_loader)
         torch.cuda.empty_cache()
 
@@ -302,8 +307,8 @@ def do_train(local_rank, args, config, where_checkpoints):
 
     @evaluator.on(Events.COMPLETED)
     def log_dev_loss(engine):
-        log_msg = f"dev epoch: {trainer.state.epoch} iteration {trainer.state.iteration}"
-        log_msg += f" | loss_amr: {engine.state.metrics['dev_amr_loss']:.3f}"
+        log_msg = f"evaluating finished epoch: {trainer.state.epoch} iteration {trainer.state.iteration}\n"
+        log_msg += f"loss_amr: {engine.state.metrics['dev_amr_loss']:.3f}"
         if not config['best_loss']:
             log_msg += f" | smatch: {engine.state.metrics['dev_smatch']:.3f}"
         
@@ -352,7 +357,7 @@ def check_data(args, config):
     )
 
     train_loader = instantiate_loader(
-        config['test'],
+        config['train'],
         tokenizer,
         batch_size=config['batch_size'],
         evaluation=False,
@@ -427,8 +432,11 @@ if __name__ == '__main__':
     if args.teacher_model is None:
         args.teacher_model = config['model']
     if args.teacher_checkpoint is None:
-        args.teacher_checkpoint = config['checkpoint']
-
+        args.teacher_checkpoint = args.checkpoint
+    
+    # only my_model support es and kd
+    if args.es or args.kd:
+        assert config['my_model']
     #check_data(args, config)
 
     root = args.ROOT
