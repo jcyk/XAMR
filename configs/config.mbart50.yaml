@@ -30,6 +30,7 @@ dereify: False
 collapse_name_ops: False
 
 # Hparams
+my_model: False
 batch_size: 1250
 beam_size: 5
 dropout: 0.25

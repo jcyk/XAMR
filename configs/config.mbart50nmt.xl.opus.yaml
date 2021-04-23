@@ -30,13 +30,14 @@ dereify: False
 collapse_name_ops: False
 
 # Hparams
-batch_size: 1250
+my_model: True
+batch_size: 625
 beam_size: 5
 dropout: 0.25
 attention_dropout: 0.0
 smart_init: True
 eval_every: 1000
-accum_steps: 1
+accum_steps: 2
 nproc_per_node: 4
 warmup_steps: 1
 training_steps: 250000

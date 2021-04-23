@@ -73,9 +73,15 @@ class MyMBartForConditionalGeneration(MBartForConditionalGeneration):
         expanded_mask = mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(dtype)
 
         if split is not None:
-            see_teacher = torch.bernoulli(expanded_mask.new_full((tgt_len,), self.es_rate)).bool()
-            expanded_mask[:,:,see_teacher,:split] = 0.
-            expanded_mask[:,:,~see_teacher,split:] = 0.
+            #### mask part of the teacher's encoder (1-p) and student's encoder (p)###
+            mask_rate = expanded_mask.new_full((src_len,), 1. - self.es_rate)
+            mask_rate[:split] = self.es_rate
+            mask = torch.bernoulli(mask_rate).bool()
+            expanded_mask[:,:,:,mask] = 0.
+            #### at each decoding step, only look at teacher's encoder (p) or student's encoder (1-p)###
+            #see_teacher = torch.bernoulli(expanded_mask.new_full((tgt_len,), self.es_rate)).bool()
+            #expanded_mask[:,:,see_teacher,:split] = 0.
+            #expanded_mask[:,:,~see_teacher,split:] = 0.
 
         inverted_mask = 1.0 - expanded_mask
 

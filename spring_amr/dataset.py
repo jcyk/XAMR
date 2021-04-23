@@ -64,7 +64,8 @@ class AMRDataset(Dataset):
         is_train = not evaluation
         for g in tqdm.tqdm(graphs): 
             l, e = self.tokenizer.linearize(g)
-            
+            l = torch.LongTensor(l)
+
             self.tokenizer.src_lang = g.metadata['snt_lang']
             x = self.tokenizer.encode(g.metadata['snt'], return_tensors='pt')[0]
             if is_train and remove_longer_than and len(l) > remove_longer_than:
