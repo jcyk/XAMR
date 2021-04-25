@@ -85,14 +85,13 @@ def predict_amrs(
                 ii = extra['ids']
                 ids.extend(ii)
                 out = generate(is_bart, model, x, beam_size)
-                nseq = len(ii)
                 for i1 in range(0, out.size(0), beam_size):
                     tokens_same_source = []
                     tokens.append(tokens_same_source)
                     for i2 in range(i1, i1+beam_size):
                         tokk = out[i2].tolist()
                         tokens_same_source.append(tokk)
-                bar.update(nseq)
+                bar.update(len(ii))
         # reorder
         tokens = [tokens[i] for i in np.argsort(np.array(ids))]
         tokens = [t for tt in tokens for t in tt]

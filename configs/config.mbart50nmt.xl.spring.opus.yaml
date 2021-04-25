@@ -31,13 +31,13 @@ collapse_name_ops: False
 
 # Hparams
 my_model: True
-batch_size: 625
+batch_size: 1250
 beam_size: 5
 dropout: 0.25
 attention_dropout: 0.0
 smart_init: True
 eval_every: 1000
-accum_steps: 2
+accum_steps: 1
 nproc_per_node: 4
 warmup_steps: 1
 training_steps: 250000

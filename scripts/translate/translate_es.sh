@@ -6,6 +6,7 @@ blang=ES
 slang=es
 prefix=/apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations
 out_dir=/apdcephfs/share_916081/jcykcai/nonono/mbart50nmt_translations
+
 domains="bolt consensus dfa proxy xinhua"
 for domain in $domains; do
     python3 translate.py \

@@ -151,8 +151,9 @@ def instantiate_loader(
         glob_pattn = [glob_pattn]
     for gpattn in glob_pattn:
         paths += [Path(p) for p in glob(str(gpattn))]
+    
     #TODO ignore zh
-    paths = [path for path in paths if not str(path).endswith('zh.txt')]
+    #paths = [path for path in paths if not (str(path).endswith('zh.txt') and '.mass.' in str(path))]
 
     paths.sort()
     if out is not None:

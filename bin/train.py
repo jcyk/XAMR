@@ -164,7 +164,8 @@ def do_train(local_rank, args, config, where_checkpoints):
                 **y)
         if args.es and engine.state.iteration < args.es_stop_after*config['accum_steps']:
             m.es = True
-            m.es_rate = 0.8 * (1.0 - engine.state.iteration/args.es_stop_after*config['accum_steps'])
+            # move from 0.8 to 0. linearly 
+            m.es_rate = 0.8 * (1.0 - engine.state.iteration/(args.es_stop_after*config['accum_steps']))
             input_ids_en = extra['input_ids_en']
             attention_mask_en = extra['attention_mask_en']
         ####
@@ -424,7 +425,7 @@ if __name__ == '__main__':
     # update config from cmd line
     for k, v in zip(extra_args[0::2], extra_args[1::2]):
         k = k[2:]
-        assert k in config, "unknown argument: {}".format(k)
+        assert k in config, "unknown argument: {}; acceptable arguments: {}".format(k, config.keys())
         if k in config:
             config[k] = type(config[k])(v) if not isinstance(config[k], bool) else bool(strtobool(v))
     
