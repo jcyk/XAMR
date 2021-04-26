@@ -177,3 +177,39 @@ def instantiate_loader(
         shuffle=not evaluation,
     )
     return loader
+
+def instantiate_loader_from_cached(
+        cache_path,
+        tokenizer,
+        batch_size=500,
+        evaluation=True,
+        out=None,
+        use_recategorization=False,
+        remove_longer_than=None,
+        remove_wiki=False,
+        dereify=True,
+        teacher_tokenizer=None,
+        rank=0,
+        world_size=1
+):
+    if out is not None:
+        Path(out).write_text(
+            '\n\n'.join([torch.load(cache_path)['text'] for p in paths]))
+    dataset = AMRDataset.from_cached(
+        cache_path,
+        tokenizer,
+        use_recategorization=use_recategorization,
+        remove_longer_than=remove_longer_than,
+        remove_wiki=remove_wiki,
+        dereify=dereify,
+        evaluation=evaluation,
+        teacher_tokenizer=teacher_tokenizer,
+        rank=rank,
+        world_size=world_size
+    )
+    loader = AMRDatasetTokenBatcherAndLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=not evaluation,
+    )
+    return loader

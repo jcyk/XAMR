@@ -40,7 +40,8 @@ class AMRDataset(Dataset):
         evaluation=True,
         teacher_tokenizer=None,
         rank=0,
-        world_size=1
+        world_size=1,
+        cached=False
     ):
         logger = setup_logger(name="Data Loading")
         self.rank = rank
@@ -48,8 +49,7 @@ class AMRDataset(Dataset):
         self.tokenizer = tokenizer
         self.teacher_tokenizer = teacher_tokenizer
         self.device = device
-        graphs = read_raw_amr_data(paths, use_recategorization, remove_wiki=remove_wiki, dereify=dereify)
-        graphs = graphs[rank::world_size]
+        self.remove_longer_than = remove_longer_than
         self.graphs = []
         self.sentences = []
         self.tokenized = []
@@ -59,54 +59,88 @@ class AMRDataset(Dataset):
         self.tokenized_teacher = []
         self.linearized = []
         self.linearized_extra = []
-        self.remove_longer_than = remove_longer_than
-        discarded = 0
-        is_train = not evaluation
-        for g in tqdm.tqdm(graphs): 
-            l, e = self.tokenizer.linearize(g)
-            l = torch.LongTensor(l)
 
-            self.tokenizer.src_lang = g.metadata['snt_lang']
-            x = self.tokenizer.encode(g.metadata['snt'], return_tensors='pt')[0]
-            if is_train and remove_longer_than and len(l) > remove_longer_than:
-                discarded += 1
-                continue
- 
-            if is_train and x.size(0) / len(l) > 5.:
-                logger.warning('bad training instance len(in):{}/len(out):{}'.format(x.size(0), len(l)))
-                discarded += 1
-                continue
-            
-            #####
-            token_en = g.metadata.get('tok-en', None)
-            if token_en and g.metadata['snt_lang'] != "en_XX":
-                self.tokenizer.src_lang = "en_XX"
-                x_en = self.tokenizer.encode(token_en, return_tensors='pt')[0]
-            else:
-                token_en = g.metadata['snt']
-                x_en = x
-            self.sentences_en.append(token_en)
-            self.tokenized_en.append(x_en)
+        if not cached:
+            graphs = read_raw_amr_data(paths, use_recategorization, remove_wiki=remove_wiki, dereify=dereify)
+            graphs = graphs[rank::world_size]
+            discarded = 0
+            is_train = not evaluation
+            for g in tqdm.tqdm(graphs): 
+                l, e = self.tokenizer.linearize(g)
+                l = torch.LongTensor(l)
 
-            self.sentences_teacher.append(token_en)
-            if self.teacher_tokenizer is not None:
-                self.tokenized_teacher.append(self.teacher_tokenizer.encode(token_en, return_tensors='pt')[0])
-            else:
-                self.tokenized_teacher.append(x_en)
-            ####
+                self.tokenizer.src_lang = g.metadata['snt_lang']
+                x = self.tokenizer.encode(g.metadata['snt'], return_tensors='pt')[0]
+                if is_train and remove_longer_than and len(l) > remove_longer_than:
+                    discarded += 1
+                    continue
+     
+                if is_train and x.size(0) / len(l) > 5.:
+                    logger.warning('bad training instance len(in):{}/len(out):{}'.format(x.size(0), len(l)))
+                    discarded += 1
+                    continue
+                
+                #####
+                token_en = g.metadata.get('tok-en', None)
+                if token_en and g.metadata['snt_lang'] != "en_XX":
+                    self.tokenizer.src_lang = "en_XX"
+                    x_en = self.tokenizer.encode(token_en, return_tensors='pt')[0]
+                else:
+                    token_en = g.metadata['snt']
+                    x_en = x
+                self.sentences_en.append(token_en)
+                self.tokenized_en.append(x_en)
 
-            self.sentences.append(g.metadata['snt'])
-            self.tokenized.append(x)
-            self.graphs.append(g)
-            self.linearized.append(l)
-            self.linearized_extra.append(e)
+                self.sentences_teacher.append(token_en)
+                if self.teacher_tokenizer is not None:
+                    self.tokenized_teacher.append(self.teacher_tokenizer.encode(token_en, return_tensors='pt')[0])
+                else:
+                    self.tokenized_teacher.append(x_en)
+                ####
 
+                self.sentences.append(g.metadata['snt'])
+                self.tokenized.append(x)
+                self.graphs.append(g)
+                self.linearized.append(l)
+                self.linearized_extra.append(e)
+        else:
+            data = torch.load(paths)
+            self.sentences = data['sentences']
+            self.tokenized = data['tokenized']
+            self.sentences_en = data['sentences_en']
+            self.tokenized_en = data['tokenized_en']
+            self.sentences_teacher = data['sentences_teacher']
+            self.tokenized_teacher = data['tokenized_teacher']
+            self.graphs = data['graphs']
+            self.linearized = data['linearized']
+            self.linearized_extra = data['linearized_extra']
+            return
         ### teacher_tokenizer is tokenizer if not given
         if self.teacher_tokenizer is None:
             self.teacher_tokenizer = self.tokenizer
 
         logger.info('the number of instances {}, discarded {}'.format(len(self.sentences), discarded))
     
+
+    @classmethod
+    def from_cached(cls, cache_path, *args, **kwargs):
+        return cls(cached_path, *args, cached=True, **kwargs)
+
+    def save_cached(self, cache_path):
+        torch.save({
+            'text': '\n\n'.join([p.read_text() for p in self.paths]),
+            'sentences': self.sentences,
+            'tokenized': self.tokenized,
+            'sentences_en': self.sentences_en,
+            'tokenized_en': self.tokenized_en,
+            'sentences_teacher': self.sentences_teacher,
+            'tokenized_teacher': self.tokenized_teacher,
+            'graphs': self.graphs,
+            'linearized': self.linearized,
+            'linearized_extra': self.linearized_extra,
+            }, cache_path)
+
+
     def __len__(self):
         return len(self.sentences)
     

@@ -385,6 +385,37 @@ def check_data(args, config):
         cnt += 1
         #print("-"*55)
     print (cnt, mx_oi, mx_io)
+    train_loader.dataset.save_cached('tmp.pt')
+
+
+    train_loader = instantiate_loader_from_cached(
+        'tmp.pt',
+        tokenizer,
+        batch_size=config['batch_size'],
+        evaluation=False,
+        use_recategorization=config['use_recategorization'],
+        remove_longer_than=config['remove_longer_than'],
+        remove_wiki=config['remove_wiki'],
+        dereify=config['dereify'],
+    )
+
+    cnt = 0
+    mx_io = 0
+    mx_oi = 0
+    for x, y, extra in train_loader:
+        #print (tokenizer.convert_ids_to_tokens(x["input_ids"][-1]))
+        #print (tokenizer.convert_ids_to_tokens(x["input_ids_en"][-1]))
+        #print (extra['sentences'][-1])
+        #print (x["attention_mask"])
+        #print (tokenizer.convert_ids_to_tokens(y["labels"][0]))
+        #print (tokenizer.convert_ids_to_tokens(y["decoder_input_ids"][0]))
+        il = x["input_ids"].size(1)
+        ol = y["labels"].size(1)
+        mx_oi = max(ol/il, mx_oi)
+        mx_io = max(il/ol, mx_io)
+        cnt += 1
+        #print("-"*55)
+    print (cnt, mx_oi, mx_io)
     assert True == False
 
 if __name__ == '__main__':
@@ -402,6 +433,9 @@ if __name__ == '__main__':
         help='Warm-start from a previous fine-tuned checkpoint.')
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--ROOT', type=Path)
+
+    # Our faster data loading by caching
+    parser.add_argument('--cache', action='store_true')
 
     # our innovations
     parser.add_argument('--kd', action='store_true')
