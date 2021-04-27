@@ -11,8 +11,8 @@ PYTHONPATH=. python3 bin/predict_amrs_from_plaintext.py \
 --model ${model} \
 --checkpoint ${ckpt}  \
 --nproc-per-node 8 \
---input-path /apdcephfs/share_916081/jcykcai/nonono/europarl/europarl.long.en.txt \
---output-path /apdcephfs/share_916081/jcykcai/nonono/europarl/europarl.long.en.amr \
+--input-path /apdcephfs/share_916081/jcykcai/nonono/europarl/newly_added.txt \
+--output-path /apdcephfs/share_916081/jcykcai/nonono/europarl/newly_added.amr \
 --beam-size 5 \
 --batch-size 3000 \
 --penman-linearization \

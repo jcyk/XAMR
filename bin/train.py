@@ -120,6 +120,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
         teacher_tokenizer=teacher_tokenizer if args.kd else None,
+        cached=args.cache,
     )
 
     dev_gold_path = where_checkpoints / 'tmp-dev-gold.txt'
@@ -141,7 +142,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         evaluation=True, out=dev_gold_path if rank==0 else None,
         use_recategorization=config['use_recategorization'],
         rank=rank,
-        world_size=world_size
+        world_size=world_size,
     )
     dev_gen_loader.device = device
 
@@ -289,7 +290,7 @@ def do_train(local_rank, args, config, where_checkpoints):
                         evaluation=True, out=dev_gold_path if rank==0 else None,
                         use_recategorization=config['use_recategorization'],
                         rank=rank,
-                        world_size=world_size
+                        world_size=world_size,
                     )
                     test_gen_loader.device = device
                     smatch = smatch_eval(test_gen_loader)
@@ -342,7 +343,7 @@ def do_train(local_rank, args, config, where_checkpoints):
     train_loader.device = device
     trainer.run(train_loader, max_epochs=config['max_epochs'])
 
-def check_data(args, config):
+def cache_check_data(args, config):
     checkpoint = args.checkpoint
     model, tokenizer = instantiate_model_and_tokenizer(
         config['model'],
@@ -354,8 +355,27 @@ def check_data(args, config):
         penman_linearization=config['penman_linearization'],
         collapse_name_ops=config['collapse_name_ops'],
         use_pointer_tokens=config['use_pointer_tokens'],
-        raw_graph=config.get('raw_graph', False)
+        raw_graph=config.get('raw_graph', False),
+        my_model=config['my_model']
     )
+
+    if args.kd:
+        teacher, teacher_tokenizer = instantiate_model_and_tokenizer(
+            args.teacher_model,
+            checkpoint=args.teacher_checkpoint,
+            additional_tokens_smart_init=config['smart_init'],
+            dropout=config['dropout'],
+            attention_dropout=config['attention_dropout'],
+            from_pretrained=config['warm_start'],
+            penman_linearization=config['penman_linearization'],
+            collapse_name_ops=config['collapse_name_ops'],
+            use_pointer_tokens=config['use_pointer_tokens'],
+            raw_graph=config.get('raw_graph', False),
+        )
+        teacher = idist.auto_model(teacher)
+        if not (args.kd and args.teacher_model != config['model']):
+            teacher_tokenizer = None
+
 
     train_loader = instantiate_loader(
         config['train'],
@@ -366,39 +386,12 @@ def check_data(args, config):
         remove_longer_than=config['remove_longer_than'],
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
+        teacher_tokenizer=teacher_tokenizer if args.kd else None,
     )
 
-    cnt = 0
-    mx_io = 0
-    mx_oi = 0
-    for x, y, extra in train_loader:
-        #print (tokenizer.convert_ids_to_tokens(x["input_ids"][-1]))
-        #print (tokenizer.convert_ids_to_tokens(x["input_ids_en"][-1]))
-        #print (extra['sentences'][-1])
-        #print (x["attention_mask"])
-        #print (tokenizer.convert_ids_to_tokens(y["labels"][0]))
-        #print (tokenizer.convert_ids_to_tokens(y["decoder_input_ids"][0]))
-        il = x["input_ids"].size(1)
-        ol = y["labels"].size(1)
-        mx_oi = max(ol/il, mx_oi)
-        mx_io = max(il/ol, mx_io)
-        cnt += 1
-        #print("-"*55)
-    print (cnt, mx_oi, mx_io)
     train_loader.dataset.save_cached('tmp.pt')
 
 
-    train_loader = instantiate_loader_from_cached(
-        'tmp.pt',
-        tokenizer,
-        batch_size=config['batch_size'],
-        evaluation=False,
-        use_recategorization=config['use_recategorization'],
-        remove_longer_than=config['remove_longer_than'],
-        remove_wiki=config['remove_wiki'],
-        dereify=config['dereify'],
-    )
-
     cnt = 0
     mx_io = 0
     mx_oi = 0
@@ -416,6 +409,7 @@ def check_data(args, config):
         cnt += 1
         #print("-"*55)
     print (cnt, mx_oi, mx_io)
+
     assert True == False
 
 if __name__ == '__main__':
@@ -472,7 +466,8 @@ if __name__ == '__main__':
     # only my_model support es and kd
     if args.es or args.kd:
         assert config['my_model']
-    #check_data(args, config)
+    
+    cache_check_data(args, config)
 
     root = args.ROOT
     root.mkdir(parents=True, exist_ok=True)

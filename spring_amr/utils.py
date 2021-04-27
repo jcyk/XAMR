@@ -144,8 +144,11 @@ def instantiate_loader(
         dereify=True,
         teacher_tokenizer=None,
         rank=0,
-        world_size=1
+        world_size=1,
+        cached=False,
 ):
+    if cached:
+        return instantiate_loader_from_cached(glob_pattn, tokenizer, batch_size=batch_size, evaluation=evaluation, out=out, use_recategorization=use_recategorization, remove_longer_than=remove_longer_than, remove_wiki=remove_wiki, dereify=dereify, teacher_tokenizer=teacher_tokenizer, rank=rank, world_size=world_size)
     paths = []
     if isinstance(glob_pattn, str) or isinstance(glob_pattn, Path):
         glob_pattn = [glob_pattn]
@@ -153,7 +156,7 @@ def instantiate_loader(
         paths += [Path(p) for p in glob(str(gpattn))]
     
     #TODO ignore zh
-    #paths = [path for path in paths if not (str(path).endswith('zh.txt') and '.mass.' in str(path))]
+    paths = [path for path in paths if not (str(path).endswith('zh.txt') and '.mass.' in str(path))]
 
     paths.sort()
     if out is not None:
@@ -193,8 +196,7 @@ def instantiate_loader_from_cached(
         world_size=1
 ):
     if out is not None:
-        Path(out).write_text(
-            '\n\n'.join([torch.load(cache_path)['text'] for p in paths]))
+        Path(out).write_text(torch.load(cache_path)['text'])
     dataset = AMRDataset.from_cached(
         cache_path,
         tokenizer,

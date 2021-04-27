@@ -103,28 +103,28 @@ class AMRDataset(Dataset):
                 self.graphs.append(g)
                 self.linearized.append(l)
                 self.linearized_extra.append(e)
+            logger.info('the number of instances {}, discarded {}'.format(len(self.sentences), discarded))
         else:
             data = torch.load(paths)
-            self.sentences = data['sentences']
-            self.tokenized = data['tokenized']
-            self.sentences_en = data['sentences_en']
-            self.tokenized_en = data['tokenized_en']
-            self.sentences_teacher = data['sentences_teacher']
-            self.tokenized_teacher = data['tokenized_teacher']
-            self.graphs = data['graphs']
-            self.linearized = data['linearized']
-            self.linearized_extra = data['linearized_extra']
-            return
+            self.sentences = data['sentences'][rank::world_size]
+            self.tokenized = data['tokenized'][rank::world_size]
+            self.sentences_en = data['sentences_en'][rank::world_size]
+            self.tokenized_en = data['tokenized_en'][rank::world_size]
+            self.sentences_teacher = data['sentences_teacher'][rank::world_size]
+            self.tokenized_teacher = data['tokenized_teacher'][rank::world_size]
+            self.graphs = data['graphs'][rank::world_size]
+            self.linearized = data['linearized'][rank::world_size]
+            self.linearized_extra = data['linearized_extra'][rank::world_size]
+            logger.info('the number of instances {}'.format(len(self.sentences)))
+
         ### teacher_tokenizer is tokenizer if not given
         if self.teacher_tokenizer is None:
             self.teacher_tokenizer = self.tokenizer
-
-        logger.info('the number of instances {}, discarded {}'.format(len(self.sentences), discarded))
     
 
     @classmethod
     def from_cached(cls, cache_path, *args, **kwargs):
-        return cls(cached_path, *args, cached=True, **kwargs)
+        return cls(cache_path, *args, cached=True, **kwargs)
 
     def save_cached(self, cache_path):
         torch.save({
@@ -174,8 +174,10 @@ class AMRDataset(Dataset):
             y = None
 
         extra['ids'] = [s['id'] for s in samples]
-        extra['input_ids_en'], extra['attention_mask_en'] = to_tensor(samples, 'tokenized_ids_en', self.tokenizer.pad_token_id, device)
-        extra['input_ids_teacher'], extra['attention_mask_teacher'] = to_tensor(samples, 'tokenized_ids_teacher', self.teacher_tokenizer.pad_token_id, device)
+        if 'tokenized_ids_en' in samples[0]:
+            extra['input_ids_en'], extra['attention_mask_en'] = to_tensor(samples, 'tokenized_ids_en', self.tokenizer.pad_token_id, device)
+        if 'tokenized_ids_teacher' in samples[0]:
+            extra['input_ids_teacher'], extra['attention_mask_teacher'] = to_tensor(samples, 'tokenized_ids_teacher', self.teacher_tokenizer.pad_token_id, device)
         
         return x, y, extra
 

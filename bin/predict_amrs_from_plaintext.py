@@ -39,7 +39,7 @@ def read_file_in_batches(path, batch_size, max_length=100, rank=0, world_size=1)
 
     def _iterator(data):
         ids = list(range(len(data)))
-        ids.sort(key=lambda x: data[x]['length'])
+        ids.sort(key=lambda x: data[x]['length'], reverse=True)
 
         batch_longest = 0
         batch_nexamps = 0
