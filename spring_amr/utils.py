@@ -146,9 +146,8 @@ def instantiate_loader(
         rank=0,
         world_size=1,
         cached=False,
+        max_cached_samples=None,
 ):
-    if cached:
-        return instantiate_loader_from_cached(glob_pattn, tokenizer, batch_size=batch_size, evaluation=evaluation, out=out, use_recategorization=use_recategorization, remove_longer_than=remove_longer_than, remove_wiki=remove_wiki, dereify=dereify, teacher_tokenizer=teacher_tokenizer, rank=rank, world_size=world_size)
     paths = []
     if isinstance(glob_pattn, str) or isinstance(glob_pattn, Path):
         glob_pattn = [glob_pattn]
@@ -156,9 +155,12 @@ def instantiate_loader(
         paths += [Path(p) for p in glob(str(gpattn))]
     
     #TODO ignore zh
-    paths = [path for path in paths if not (str(path).endswith('zh.txt') and '.mass.' in str(path))]
-
+    paths = [path for path in paths if not (str(path).endswith('zh.txt'))]
+    #paths = [path for path in paths if not (str(path).endswith('zh.txt') and '.mass.' in str(path))]
+    paths = [path for path in paths if not (str(path).endswith('zh.pt'))]
     paths.sort()
+    if cached:
+        return instantiate_loader_from_cached(paths, tokenizer, batch_size=batch_size, evaluation=evaluation, out=out, use_recategorization=use_recategorization, remove_longer_than=remove_longer_than, remove_wiki=remove_wiki, dereify=dereify, teacher_tokenizer=teacher_tokenizer, rank=rank, world_size=world_size, max_cached_samples=max_cached_samples) 
     if out is not None:
         Path(out).write_text(
             '\n\n'.join([p.read_text() for p in paths]))
@@ -182,7 +184,7 @@ def instantiate_loader(
     return loader
 
 def instantiate_loader_from_cached(
-        cache_path,
+        paths,
         tokenizer,
         batch_size=500,
         evaluation=True,
@@ -193,12 +195,15 @@ def instantiate_loader_from_cached(
         dereify=True,
         teacher_tokenizer=None,
         rank=0,
-        world_size=1
+        world_size=1,
+        max_cached_samples=None,
 ):
     if out is not None:
-        Path(out).write_text(torch.load(cache_path)['text'])
+        assert False, "cannot print text from cached"
+        Path(out).write_text(
+            '\n\n'.join([torch.load(p)['text'] for p in paths]))
     dataset = AMRDataset.from_cached(
-        cache_path,
+        paths,
         tokenizer,
         use_recategorization=use_recategorization,
         remove_longer_than=remove_longer_than,
@@ -207,7 +212,8 @@ def instantiate_loader_from_cached(
         evaluation=evaluation,
         teacher_tokenizer=teacher_tokenizer,
         rank=rank,
-        world_size=world_size
+        world_size=world_size,
+        max_cached_samples=max_cached_samples,
     )
     loader = AMRDatasetTokenBatcherAndLoader(
         dataset,

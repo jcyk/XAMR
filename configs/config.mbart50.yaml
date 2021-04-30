@@ -40,7 +40,7 @@ eval_every: 1000
 accum_steps: 1
 nproc_per_node: 4
 warmup_steps: 1
-training_steps: 250000
+training_steps: 30000
 weight_decay: 0.004
 grad_norm: 2.5
 scheduler: constant

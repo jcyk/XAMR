@@ -1,7 +1,7 @@
 from pathlib import Path
 from glob import glob
 from distutils.util import strtobool
-
+import math
 import torch
 try:
     from torch.cuda.amp import autocast
@@ -95,19 +95,6 @@ def do_train(local_rank, args, config, where_checkpoints):
         optimizer.load_state_dict(torch.load(checkpoint, map_location='cpu')['optimizer'])
 
     optimizer = idist.auto_optim(optimizer)
-
-    if config['scheduler'] == 'cosine':
-        scheduler = transformers.get_cosine_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=config['warmup_steps'],
-            num_training_steps=config['training_steps'])
-    elif config['scheduler'] == 'constant':
-        scheduler = transformers.get_constant_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=config['warmup_steps'])
-    else:
-        raise ValueError
-
     scaler = GradScaler(enabled=fp16)
 
     train_loader = instantiate_loader(
@@ -121,6 +108,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         dereify=config['dereify'],
         teacher_tokenizer=teacher_tokenizer if args.kd else None,
         cached=args.cache,
+        max_cached_samples=args.max_cached_samples,
     )
 
     dev_gold_path = where_checkpoints / 'tmp-dev-gold.txt'
@@ -146,6 +134,26 @@ def do_train(local_rank, args, config, where_checkpoints):
     )
     dev_gen_loader.device = device
 
+
+    if config['training_steps']:
+        max_epochs = config['training_steps'] / len(train_loader)
+        config['max_epochs'] = math.ceil(idist.all_reduce(max_epochs)/world_size)
+    else:
+        training_steps = config['max_epochs'] * len(train_loader)
+        config['training_steps'] = math.ceil(idist.all_reduce(traning_steps)/world_size)
+
+    if config['scheduler'] == 'constant':
+        scheduler = transformers.get_constant_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=config['warmup_steps'])
+    elif config['scheduler'] == 'linear':
+        scheduler = transformers.get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=config['warmup_steps'],
+            num_training_steps=config['training_steps'])
+    else:
+        raise ValueError
+    
     def train_step(engine, batch):
         model.train()
         x, y, extra = batch
@@ -206,8 +214,8 @@ def do_train(local_rank, args, config, where_checkpoints):
     evaluator = Engine(eval_step)
 
     @trainer.on(Events.STARTED)
-    def update(engine):
-        logger.info('training started!')
+    def start(engine):
+        logger.info(f"training started! max epochs: {config['max_epochs']} training steps: {config['training_steps']}")
 
     @trainer.on(Events.ITERATION_COMPLETED(every=config['accum_steps']))
     def update(engine):
@@ -218,7 +226,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         optimizer.zero_grad()
         scheduler.step()
 
-    @trainer.on(Events.ITERATION_COMPLETED(every=config['accum_steps']*config['eval_every'])|Events.COMPLETED)
+    @trainer.on(Events.ITERATION_COMPLETED(every=config['accum_steps']*config['eval_every']))
     def log_trn_loss(engine):
         log_msg = f"training epoch: {engine.state.epoch}, iteration {engine.state.iteration}"
         log_msg += f" | loss_amr: {engine.state.metrics['trn_amr_loss']:.3f}"
@@ -234,6 +242,10 @@ def do_train(local_rank, args, config, where_checkpoints):
             (model.module if hasattr(model, "module") else model).degenerate()
         evaluator.run(dev_loader)
         torch.cuda.empty_cache()
+
+    @trainer.on(Events.ITERATION_COMPLETED(once=config['accum_steps']*config['training_steps']))
+    def stop_training():
+        trainer.terminate()
 
     def smatch_eval(gen_loader): 
         graphs = predict_amrs(
@@ -341,6 +353,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         evaluator.add_event_handler(Events.COMPLETED, handler, to_save)
 
     train_loader.device = device
+ 
     trainer.run(train_loader, max_epochs=config['max_epochs'])
 
 def cache_check_data(args, config):
@@ -387,9 +400,10 @@ def cache_check_data(args, config):
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
         teacher_tokenizer=teacher_tokenizer if args.kd else None,
+        cached=args.cache,
     )
 
-    train_loader.dataset.save_cached('tmp.pt')
+    train_loader.dataset.save_cached('train_zh.pt')
 
 
     cnt = 0
@@ -430,7 +444,7 @@ if __name__ == '__main__':
 
     # Our faster data loading by caching
     parser.add_argument('--cache', action='store_true')
-
+    parser.add_argument('--max_cached_samples', type=int, default=None)
     # our innovations
     parser.add_argument('--kd', action='store_true')
     parser.add_argument('--kd_start_after', type=int, default=0)
@@ -466,8 +480,12 @@ if __name__ == '__main__':
     # only my_model support es and kd
     if args.es or args.kd:
         assert config['my_model']
+    else:
+        print ("no es or kd, my_model is turned off.")
+        config['my_model'] = False
+
     
-    cache_check_data(args, config)
+    #cache_check_data(args, config)
 
     root = args.ROOT
     root.mkdir(parents=True, exist_ok=True)
