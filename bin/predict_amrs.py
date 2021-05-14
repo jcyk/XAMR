@@ -47,7 +47,8 @@ def run(local_rank, args):
         evaluation=True, out=gold_path,
         use_recategorization=args.use_recategorization,
         rank=rank,
-        world_size=world_size
+        world_size=world_size,
+        zh=args.zh,
     )
     loader.device = device
 
@@ -80,8 +81,9 @@ def run(local_rank, args):
     args.pred_path.write_text('\n\n'.join(pieces))
     if not args.return_all:
         score = compute_smatch(args.gold_path, args.pred_path)
+        score = score * 100
         print (args.checkpoint, args.datasets)
-        print (f'Smatch: {score:.3f}')
+        print (f'Smatch: {score:.1f}')
 
 if __name__ == '__main__':
 
@@ -114,7 +116,7 @@ if __name__ == '__main__':
     parser.add_argument('--restore-name-ops', action='store_true')
     parser.add_argument('--return-all', action='store_true')
     parser.add_argument('--nproc-per-node', type=int, default=2)
-
+    parser.add_argument('--zh', type=str, default='opus')
     args = parser.parse_args()
     with idist.Parallel(backend="nccl", nproc_per_node=args.nproc_per_node, master_port=8888) as parallel:
         parallel.run(run, args)

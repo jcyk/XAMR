@@ -4,6 +4,7 @@ import tqdm
 from cached_property import cached_property
 from torch.utils.data import Dataset
 from spring_amr.IO import read_raw_amr_data
+from spring_amr.noising import Noiser
 from ignite.utils import setup_logger
 from torch.nn.utils.rnn import pad_sequence
 
@@ -43,6 +44,7 @@ class AMRDataset(Dataset):
         world_size=1,
         cached=False,
         max_cached_samples=None,
+        noise=0.,
     ):
         logger = setup_logger(name="Data Loading")
         self.rank = rank
@@ -62,6 +64,10 @@ class AMRDataset(Dataset):
         self.linearized = []
         self.linearized_extra = []
 
+        if noise > 0.:
+            self.noiser = Noiser(self.tokenizer)
+        else:
+            self.noiser = None
         if not cached:
             graphs = read_raw_amr_data(paths, use_recategorization, remove_wiki=remove_wiki, dereify=dereify)
             graphs = graphs[rank::world_size]
@@ -151,6 +157,9 @@ class AMRDataset(Dataset):
         sample['id'] = idx
         sample['sentence'] = self.sentences[idx]
         sample["tokenized_ids"] = self.tokenized[idx]
+        if self.noiser is not None:
+            sample["tokenized_ids"] = self.noiser.noise(sample["tokenized_ids"])
+
         if self.linearized:
             sample['linearized_graphs_ids'] = self.linearized[idx]
             if self.linearized_extra: sample.update(self.linearized_extra[idx])

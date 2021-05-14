@@ -147,6 +147,8 @@ def instantiate_loader(
         world_size=1,
         cached=False,
         max_cached_samples=None,
+        zh='ignore',
+        noise=0.,
 ):
     paths = []
     if isinstance(glob_pattn, str) or isinstance(glob_pattn, Path):
@@ -154,13 +156,17 @@ def instantiate_loader(
     for gpattn in glob_pattn:
         paths += [Path(p) for p in glob(str(gpattn))]
     
-    #TODO ignore zh
-    paths = [path for path in paths if not (str(path).endswith('zh.txt'))]
-    #paths = [path for path in paths if not (str(path).endswith('zh.txt') and '.mass.' in str(path))]
-    paths = [path for path in paths if not (str(path).endswith('zh.pt'))]
+    if zh == "ignore":
+        paths = [path for path in paths if not (str(path).endswith('zh.txt') or str(path).endswith('zh.pt'))]
+    elif zh == "opus":
+        paths = [path for path in paths if not ((str(path).endswith('zh.txt') or str(path).endswith('zh.pt')) and '.mass.' in str(path))] 
+    elif zh == "mass":
+        paths = [path for path in paths if not ((str(path).endswith('zh.txt') or str(path).endswith('zh.pt')) and '.opus.' in str(path))]
+    else:
+        raise TypeError
     paths.sort()
     if cached:
-        return instantiate_loader_from_cached(paths, tokenizer, batch_size=batch_size, evaluation=evaluation, out=out, use_recategorization=use_recategorization, remove_longer_than=remove_longer_than, remove_wiki=remove_wiki, dereify=dereify, teacher_tokenizer=teacher_tokenizer, rank=rank, world_size=world_size, max_cached_samples=max_cached_samples) 
+        return instantiate_loader_from_cached(paths, tokenizer, batch_size=batch_size, evaluation=evaluation, out=out, use_recategorization=use_recategorization, remove_longer_than=remove_longer_than, remove_wiki=remove_wiki, dereify=dereify, teacher_tokenizer=teacher_tokenizer, rank=rank, world_size=world_size, max_cached_samples=max_cached_samples, noise=noise) 
     if out is not None:
         Path(out).write_text(
             '\n\n'.join([p.read_text() for p in paths]))
@@ -174,7 +180,8 @@ def instantiate_loader(
         evaluation=evaluation,
         teacher_tokenizer=teacher_tokenizer,
         rank=rank,
-        world_size=world_size
+        world_size=world_size,
+        noise=noise,
     )
     loader = AMRDatasetTokenBatcherAndLoader(
         dataset,
@@ -197,6 +204,7 @@ def instantiate_loader_from_cached(
         rank=0,
         world_size=1,
         max_cached_samples=None,
+        noise=0.,
 ):
     if out is not None:
         assert False, "cannot print text from cached"
@@ -214,6 +222,7 @@ def instantiate_loader_from_cached(
         rank=rank,
         world_size=world_size,
         max_cached_samples=max_cached_samples,
+        noise=noise,
     )
     loader = AMRDatasetTokenBatcherAndLoader(
         dataset,

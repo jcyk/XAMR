@@ -24,15 +24,14 @@ from spring_amr.utils import instantiate_model_and_tokenizer, instantiate_loader
 from spring_amr.penman import encode
 from spring_amr.modeling import get_teacher_logits
 
+from ignite.contrib.engines import common
 from ignite.engine import Engine, Events
 from ignite.metrics import RunningAverage
 from ignite.handlers import ModelCheckpoint, global_step_from_engine
-
 import ignite.distributed as idist
 from ignite.utils import setup_logger, manual_seed
+
 import logging
-
-
 logging.getLogger("penman").setLevel(logging.ERROR)
 
 def do_train(local_rank, args, config, where_checkpoints):
@@ -109,6 +108,8 @@ def do_train(local_rank, args, config, where_checkpoints):
         teacher_tokenizer=teacher_tokenizer if args.kd else None,
         cached=args.cache,
         max_cached_samples=args.max_cached_samples,
+        zh=args.zh,
+        noise=args.noise,
     )
 
     dev_gold_path = where_checkpoints / 'tmp-dev-gold.txt'
@@ -121,6 +122,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         use_recategorization=config['use_recategorization'],
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
+        zh=args.zh,
     )
 
     dev_gen_loader = instantiate_loader(
@@ -131,16 +133,16 @@ def do_train(local_rank, args, config, where_checkpoints):
         use_recategorization=config['use_recategorization'],
         rank=rank,
         world_size=world_size,
+        zh=args.zh,
     )
     dev_gen_loader.device = device
 
-
+    epoch_length = len(train_loader) / config['accum_steps']
+    epoch_length = math.ceil(idist.all_reduce(epoch_length)/world_size)
     if config['training_steps']:
-        max_epochs = config['training_steps'] / len(train_loader)
-        config['max_epochs'] = math.ceil(idist.all_reduce(max_epochs)/world_size)
+        config['max_epochs'] = config['training_steps'] / epoch_length * world_size
     else:
-        training_steps = config['max_epochs'] * len(train_loader)
-        config['training_steps'] = math.ceil(idist.all_reduce(traning_steps)/world_size)
+        config['training_steps'] = config['max_epochs'] / world_size * epoch_length
 
     if config['scheduler'] == 'constant':
         scheduler = transformers.get_constant_schedule_with_warmup(
@@ -215,7 +217,7 @@ def do_train(local_rank, args, config, where_checkpoints):
 
     @trainer.on(Events.STARTED)
     def start(engine):
-        logger.info(f"training started! max epochs: {config['max_epochs']} training steps: {config['training_steps']}")
+        logger.info(f"training started! total epochs: {config['max_epochs']} steps: {config['training_steps']}")
 
     @trainer.on(Events.ITERATION_COMPLETED(every=config['accum_steps']))
     def update(engine):
@@ -303,10 +305,12 @@ def do_train(local_rank, args, config, where_checkpoints):
                         use_recategorization=config['use_recategorization'],
                         rank=rank,
                         world_size=world_size,
+                        zh=args.zh,
                     )
                     test_gen_loader.device = device
                     smatch = smatch_eval(test_gen_loader)
-                    log_msg = f"test {x} {path} {smatch:.3f}"
+                    smatch = 100 * smatch
+                    log_msg = f"test {x} {path} {smatch:.1f}"
                     logger.info(log_msg)
 
     @evaluator.on(Events.STARTED)
@@ -354,7 +358,8 @@ def do_train(local_rank, args, config, where_checkpoints):
 
     train_loader.device = device
  
-    trainer.run(train_loader, max_epochs=config['max_epochs'])
+    common.add_early_stopping_by_val_score(5, evaluator, trainer, "dev_smatch") 
+    trainer.run(train_loader, max_epochs=math.ceil(config['max_epochs']/world_size))
 
 def cache_check_data(args, config):
     checkpoint = args.checkpoint
@@ -371,7 +376,6 @@ def cache_check_data(args, config):
         raw_graph=config.get('raw_graph', False),
         my_model=config['my_model']
     )
-
     if args.kd:
         teacher, teacher_tokenizer = instantiate_model_and_tokenizer(
             args.teacher_model,
@@ -401,16 +405,18 @@ def cache_check_data(args, config):
         dereify=config['dereify'],
         teacher_tokenizer=teacher_tokenizer if args.kd else None,
         cached=args.cache,
+        zh=args.zh,
+        noise=args.noise,
     )
 
-    train_loader.dataset.save_cached('train_zh.pt')
+    #train_loader.dataset.save_cached('train_zh.pt')
 
 
     cnt = 0
     mx_io = 0
     mx_oi = 0
     for x, y, extra in train_loader:
-        #print (tokenizer.convert_ids_to_tokens(x["input_ids"][-1]))
+        print (tokenizer.convert_ids_to_tokens(x["input_ids"][-1]))
         #print (tokenizer.convert_ids_to_tokens(x["input_ids_en"][-1]))
         #print (extra['sentences'][-1])
         #print (x["attention_mask"])
@@ -445,7 +451,9 @@ if __name__ == '__main__':
     # Our faster data loading by caching
     parser.add_argument('--cache', action='store_true')
     parser.add_argument('--max_cached_samples', type=int, default=None)
+    parser.add_argument('--zh', type=str, default='ignore')
     # our innovations
+    parser.add_argument('--noise', type=float, default=0.)
     parser.add_argument('--kd', action='store_true')
     parser.add_argument('--kd_start_after', type=int, default=0)
     parser.add_argument('--kd_alpha', type=float, default=0.5)
@@ -484,7 +492,6 @@ if __name__ == '__main__':
         print ("no es or kd, my_model is turned off.")
         config['my_model'] = False
 
-    
     #cache_check_data(args, config)
 
     root = args.ROOT

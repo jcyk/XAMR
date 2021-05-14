@@ -87,6 +87,7 @@ class AMRMBart50Tokenizer(MBart50Tokenizer):
         self.pad_token = self.INIT + '<pad>'
         self.eos_token = self.INIT + '</s>'
         self.unk_token = self.INIT + '<unk>'
+        self.mask_token = self.INIT + '<mask>'
         self.vocab = self.get_vocab()
     
     @property

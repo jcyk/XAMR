@@ -45,7 +45,7 @@ weight_decay: 0.004
 grad_norm: 2.5
 scheduler: constant
 learning_rate: 0.00005
-max_epochs: 3
+max_epochs: 12
 save_checkpoints: True
 log_wandb: False
 warm_start: True
