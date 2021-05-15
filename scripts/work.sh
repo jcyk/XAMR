@@ -2,6 +2,37 @@ set -e
 
 pip3 install -r requirements.txt
 
+
+ckpt=/apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/para/include_zh/ft/7/*.pt
+sh scripts/work.base.sh $ckpt facebook/mbart-large-50-many-to-many-mmt
+
+exit 0
+ckpt=/apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/runs/opus/1/*.pt
+sh scripts/work.base.sh $ckpt facebook/mbart-large-50-many-to-many-mmt
+
+
+exit 0
+
+
+ckpt=/apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/self/include_zh/ft/0/*.pt
+sh scripts/work.base.sh $ckpt facebook/mbart-large-50-many-to-many-mmt
+
+ckpt=/apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/para/include_zh/pt/1/*.pt
+sh scripts/work.base.sh $ckpt facebook/mbart-large-50-many-to-many-mmt
+
+ckpt=/apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/para/include_zh/pt/5/*.pt
+sh scripts/work.base.sh $ckpt facebook/mbart-large-50-many-to-many-mmt
+
+ckpt=/apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/para/include_zh/pt/4/*.pt
+sh scripts/work.base.sh $ckpt facebook/mbart-large-50-many-to-many-mmt
+
+ckpt=/apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/para/include_zh/pt/6/*.pt
+sh scripts/work.base.sh $ckpt facebook/mbart-large-50-many-to-many-mmt
+
+
+
+exit 0
+
 ckpt=/apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/runs/opus/best-smatch_checkpoint_1_0.7412.pt
 sh scripts/work.base.sh $ckpt facebook/mbart-large-50-many-to-many-mmt
 

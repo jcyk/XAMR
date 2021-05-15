@@ -7,4 +7,11 @@ PYTHONPATH=. python3 bin/train.py \
 --train "/apdcephfs/share_916081/jcykcai/nonono/europarl/training/*.pt" \
 --cache \
 --max_cached_samples 320000 \
---ROOT /apdcephfs/share_916081/jcykcai/nonono/mbart50nmt
+--noise $1 \
+--ROOT /apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/noise/pt
+
+
+#PYTHONPATH=. python3 bin/train.py \
+#--config configs/config.mbart50.xl.opus.yaml \
+#--checkpoint /apdcephfs/share_916081/jcykcai/nonono/mbart50/p1f1f2/pt/0/*.pt \
+#--ROOT /apdcephfs/share_916081/jcykcai/nonono/mbart50/p1f1f2/ft

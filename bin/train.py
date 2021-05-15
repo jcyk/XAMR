@@ -69,8 +69,8 @@ def do_train(local_rank, args, config, where_checkpoints):
     model = idist.auto_model(model)
 
     if args.kd:
-        teacher, teacher_tokenizer = instantiate_model_and_tokenizer(
-            args.teacher_model,
+        teacher, _ = instantiate_model_and_tokenizer(
+            config['model'],
             checkpoint=args.teacher_checkpoint,
             additional_tokens_smart_init=config['smart_init'],
             dropout=config['dropout'],
@@ -82,8 +82,6 @@ def do_train(local_rank, args, config, where_checkpoints):
             raw_graph=config.get('raw_graph', False),
         )
         teacher = idist.auto_model(teacher)
-        if not (args.kd and args.teacher_model != config['model']):
-            teacher_tokenizer = None
     
     optimizer = RAdam(
         model.parameters(),
@@ -105,7 +103,6 @@ def do_train(local_rank, args, config, where_checkpoints):
         remove_longer_than=config['remove_longer_than'],
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
-        teacher_tokenizer=teacher_tokenizer if args.kd else None,
         cached=args.cache,
         max_cached_samples=args.max_cached_samples,
         zh=args.zh,
@@ -170,8 +167,8 @@ def do_train(local_rank, args, config, where_checkpoints):
             m.kd_alpha = args.kd_alpha
             m.kd_temperature = args.kd_temperature
             teacher_lm_logits = get_teacher_logits(teacher,
-                input_ids=extra['input_ids_teacher'],
-                attention_mask=extra['attention_mask_teacher'],
+                input_ids=extra['input_ids_en'],
+                attention_mask=extra['attention_mask_en'],
                 **y)
         if args.es and engine.state.iteration < args.es_stop_after*config['accum_steps']:
             m.es = True
@@ -377,8 +374,8 @@ def cache_check_data(args, config):
         my_model=config['my_model']
     )
     if args.kd:
-        teacher, teacher_tokenizer = instantiate_model_and_tokenizer(
-            args.teacher_model,
+        teacher, _ = instantiate_model_and_tokenizer(
+            config['model'], 
             checkpoint=args.teacher_checkpoint,
             additional_tokens_smart_init=config['smart_init'],
             dropout=config['dropout'],
@@ -390,9 +387,6 @@ def cache_check_data(args, config):
             raw_graph=config.get('raw_graph', False),
         )
         teacher = idist.auto_model(teacher)
-        if not (args.kd and args.teacher_model != config['model']):
-            teacher_tokenizer = None
-
 
     train_loader = instantiate_loader(
         config['train'],
@@ -403,7 +397,6 @@ def cache_check_data(args, config):
         remove_longer_than=config['remove_longer_than'],
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
-        teacher_tokenizer=teacher_tokenizer if args.kd else None,
         cached=args.cache,
         zh=args.zh,
         noise=args.noise,
@@ -451,14 +444,13 @@ if __name__ == '__main__':
     # Our faster data loading by caching
     parser.add_argument('--cache', action='store_true')
     parser.add_argument('--max_cached_samples', type=int, default=None)
-    parser.add_argument('--zh', type=str, default='ignore')
+    parser.add_argument('--zh', type=str, default='opus')
     # our innovations
     parser.add_argument('--noise', type=float, default=0.)
     parser.add_argument('--kd', action='store_true')
     parser.add_argument('--kd_start_after', type=int, default=0)
     parser.add_argument('--kd_alpha', type=float, default=0.5)
     parser.add_argument('--kd_temperature', type=float, default=1.)
-    parser.add_argument('--teacher_model', type=str, default=None)
     parser.add_argument('--teacher_checkpoint', type=str, default=None)
 
     parser.add_argument('--es', action='store_true')
@@ -480,8 +472,6 @@ if __name__ == '__main__':
             config[k] = type(config[k])(v) if not isinstance(config[k], bool) else bool(strtobool(v))
     
     # self-distillation if teacher not specified
-    if args.teacher_model is None:
-        args.teacher_model = config['model']
     if args.teacher_checkpoint is None:
         args.teacher_checkpoint = args.checkpoint
     

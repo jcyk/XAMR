@@ -142,7 +142,6 @@ def instantiate_loader(
         remove_longer_than=None,
         remove_wiki=False,
         dereify=True,
-        teacher_tokenizer=None,
         rank=0,
         world_size=1,
         cached=False,
@@ -166,7 +165,7 @@ def instantiate_loader(
         raise TypeError
     paths.sort()
     if cached:
-        return instantiate_loader_from_cached(paths, tokenizer, batch_size=batch_size, evaluation=evaluation, out=out, use_recategorization=use_recategorization, remove_longer_than=remove_longer_than, remove_wiki=remove_wiki, dereify=dereify, teacher_tokenizer=teacher_tokenizer, rank=rank, world_size=world_size, max_cached_samples=max_cached_samples, noise=noise) 
+        return instantiate_loader_from_cached(paths, tokenizer, batch_size=batch_size, evaluation=evaluation, out=out, use_recategorization=use_recategorization, remove_longer_than=remove_longer_than, remove_wiki=remove_wiki, dereify=dereify, rank=rank, world_size=world_size, max_cached_samples=max_cached_samples, noise=noise) 
     if out is not None:
         Path(out).write_text(
             '\n\n'.join([p.read_text() for p in paths]))
@@ -178,7 +177,6 @@ def instantiate_loader(
         remove_wiki=remove_wiki,
         dereify=dereify,
         evaluation=evaluation,
-        teacher_tokenizer=teacher_tokenizer,
         rank=rank,
         world_size=world_size,
         noise=noise,
@@ -200,7 +198,6 @@ def instantiate_loader_from_cached(
         remove_longer_than=None,
         remove_wiki=False,
         dereify=True,
-        teacher_tokenizer=None,
         rank=0,
         world_size=1,
         max_cached_samples=None,
@@ -218,7 +215,6 @@ def instantiate_loader_from_cached(
         remove_wiki=remove_wiki,
         dereify=dereify,
         evaluation=evaluation,
-        teacher_tokenizer=teacher_tokenizer,
         rank=rank,
         world_size=world_size,
         max_cached_samples=max_cached_samples,

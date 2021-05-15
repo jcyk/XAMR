@@ -39,7 +39,6 @@ class AMRDataset(Dataset):
         remove_wiki=False,
         dereify=True,
         evaluation=True,
-        teacher_tokenizer=None,
         rank=0,
         world_size=1,
         cached=False,
@@ -50,7 +49,6 @@ class AMRDataset(Dataset):
         self.rank = rank
         self.paths = paths
         self.tokenizer = tokenizer
-        self.teacher_tokenizer = teacher_tokenizer
         self.device = device
         self.remove_longer_than = remove_longer_than
         self.cached = cached
@@ -59,13 +57,11 @@ class AMRDataset(Dataset):
         self.tokenized = []
         self.sentences_en = []
         self.tokenized_en = []
-        self.sentences_teacher = []
-        self.tokenized_teacher = []
         self.linearized = []
         self.linearized_extra = []
 
         if noise > 0.:
-            self.noiser = Noiser(self.tokenizer)
+            self.noiser = Noiser(self.tokenizer, mask=noise)
         else:
             self.noiser = None
         if not cached:
@@ -98,12 +94,6 @@ class AMRDataset(Dataset):
                     x_en = x
                 self.sentences_en.append(token_en)
                 self.tokenized_en.append(x_en)
-
-                self.sentences_teacher.append(token_en)
-                if self.teacher_tokenizer is not None:
-                    self.tokenized_teacher.append(self.teacher_tokenizer.encode(token_en, return_tensors='pt')[0])
-                else:
-                    self.tokenized_teacher.append(x_en)
                 ####
 
                 self.sentences.append(g.metadata['snt'])
@@ -118,17 +108,11 @@ class AMRDataset(Dataset):
                 self.sentences.extend(data['sentences'][rank:max_cached_samples:world_size])
                 self.tokenized.extend(data['tokenized'][rank:max_cached_samples:world_size])
                 #self.sentences_en.extend(data['sentences_en'][rank:max_cached_samples:world_size])
-                #self.tokenized_en.extend(data['tokenized_en'][rank:max_cached_samples:world_size])
-                #self.sentences_teacher.extend(data['sentences_teacher'][rank:max_cached_samples:world_size])
-                #self.tokenized_teacher.extend(data['tokenized_teacher'][rank:max_cached_samples:world_size])
+                #self.tokenized_en.extend(data['tokenized_en'][rank:max_cached_samples:world_size]) 
                 #self.graphs.extend(data['graphs'][rank:max_cached_samples:world_size])
                 self.linearized.extend(data['linearized'][rank:max_cached_samples:world_size])
                 #self.linearized_extra.extend(data['linearized_extra'][rank:max_cached_samples:world_size])
             logger.info('the number of instances {}'.format(len(self.sentences)))
-
-        ### teacher_tokenizer is tokenizer if not given
-        if self.teacher_tokenizer is None:
-            self.teacher_tokenizer = self.tokenizer
 
     @classmethod
     def from_cached(cls, cache_path, *args, **kwargs):
@@ -139,10 +123,8 @@ class AMRDataset(Dataset):
             #'text': '\n\n'.join([p.read_text() for p in self.paths]),
             'sentences': self.sentences,
             'tokenized': self.tokenized,
-            #'sentences_en': self.sentences_en,
-            #'tokenized_en': self.tokenized_en,
-            #'sentences_teacher': self.sentences_teacher,
-            #'tokenized_teacher': self.tokenized_teacher,
+            'sentences_en': self.sentences_en,
+            'tokenized_en': self.tokenized_en,
             #'graphs': self.graphs,
             'linearized': self.linearized,
             #'linearized_extra': self.linearized_extra,
@@ -166,9 +148,6 @@ class AMRDataset(Dataset):
         if self.tokenized_en:
             sample['tokenized_ids_en'] = self.tokenized_en[idx]
             sample['sentence_en'] = self.sentences_en[idx]
-        if self.tokenized_teacher:
-            sample['tokenized_ids_teacher'] = self.tokenized_teacher[idx]
-            sample['sentence_teacher'] = self.sentences_teacher[idx]
 
         return sample
 
@@ -186,10 +165,7 @@ class AMRDataset(Dataset):
 
         extra['ids'] = [s['id'] for s in samples]
         if 'tokenized_ids_en' in samples[0]:
-            extra['input_ids_en'], extra['attention_mask_en'] = to_tensor(samples, 'tokenized_ids_en', self.tokenizer.pad_token_id, device)
-        if 'tokenized_ids_teacher' in samples[0]:
-            extra['input_ids_teacher'], extra['attention_mask_teacher'] = to_tensor(samples, 'tokenized_ids_teacher', self.teacher_tokenizer.pad_token_id, device)
-        
+            extra['input_ids_en'], extra['attention_mask_en'] = to_tensor(samples, 'tokenized_ids_en', self.tokenizer.pad_token_id, device)        
         return x, y, extra
 
 class AMRDatasetTokenBatcherAndLoader:
