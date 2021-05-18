@@ -373,21 +373,8 @@ def cache_check_data(args, config):
         raw_graph=config.get('raw_graph', False),
         my_model=config['my_model']
     )
-    if args.kd:
-        teacher, _ = instantiate_model_and_tokenizer(
-            config['model'], 
-            checkpoint=args.teacher_checkpoint,
-            additional_tokens_smart_init=config['smart_init'],
-            dropout=config['dropout'],
-            attention_dropout=config['attention_dropout'],
-            from_pretrained=config['warm_start'],
-            penman_linearization=config['penman_linearization'],
-            collapse_name_ops=config['collapse_name_ops'],
-            use_pointer_tokens=config['use_pointer_tokens'],
-            raw_graph=config.get('raw_graph', False),
-        )
-        teacher = idist.auto_model(teacher)
 
+    print ("model and tokenizer ready")
     train_loader = instantiate_loader(
         config['train'],
         tokenizer,
@@ -402,7 +389,7 @@ def cache_check_data(args, config):
         noise=args.noise,
     )
 
-    #train_loader.dataset.save_cached('train_zh.pt')
+    train_loader.dataset.save_cached('train_en.pt')
 
 
     cnt = 0

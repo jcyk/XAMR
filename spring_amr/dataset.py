@@ -107,8 +107,9 @@ class AMRDataset(Dataset):
                 data = torch.load(path)
                 self.sentences.extend(data['sentences'][rank:max_cached_samples:world_size])
                 self.tokenized.extend(data['tokenized'][rank:max_cached_samples:world_size])
-                #self.sentences_en.extend(data['sentences_en'][rank:max_cached_samples:world_size])
-                #self.tokenized_en.extend(data['tokenized_en'][rank:max_cached_samples:world_size]) 
+                if 'sentences_en' in data:
+                    self.sentences_en.extend(data['sentences_en'][rank:max_cached_samples:world_size])
+                    self.tokenized_en.extend(data['tokenized_en'][rank:max_cached_samples:world_size]) 
                 #self.graphs.extend(data['graphs'][rank:max_cached_samples:world_size])
                 self.linearized.extend(data['linearized'][rank:max_cached_samples:world_size])
                 #self.linearized_extra.extend(data['linearized_extra'][rank:max_cached_samples:world_size])

@@ -10,8 +10,3 @@ PYTHONPATH=. python3 bin/train.py \
 --noise $1 \
 --ROOT /apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/noise/pt
 
-
-#PYTHONPATH=. python3 bin/train.py \
-#--config configs/config.mbart50.xl.opus.yaml \
-#--checkpoint /apdcephfs/share_916081/jcykcai/nonono/mbart50/p1f1f2/pt/0/*.pt \
-#--ROOT /apdcephfs/share_916081/jcykcai/nonono/mbart50/p1f1f2/ft

@@ -1,7 +1,10 @@
 set -e
 
 pip3 install -r requirements.txt
+ckpt=/apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/selfwordseq/ft/2/*.pt
+sh scripts/work.base.sh $ckpt facebook/mbart-large-50-many-to-many-mmt
 
+exit 0
 
 ckpt=/apdcephfs/share_916081/jcykcai/nonono/mbart50nmt/para/include_zh/ft/7/*.pt
 sh scripts/work.base.sh $ckpt facebook/mbart-large-50-many-to-many-mmt
