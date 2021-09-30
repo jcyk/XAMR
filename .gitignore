@@ -127,3 +127,4 @@ dmypy.json
 abstract_meaning_representation_amr_2.0/*
 train.txt
 *.ipynb
+EMNLP-2021-CD-XAMR/
