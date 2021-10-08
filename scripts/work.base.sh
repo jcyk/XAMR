@@ -1,11 +1,12 @@
 set -e
 
-checkpoint=$1 #/apdcephfs/share_916081/jcykcai/nonono/mbart50/runs/2/best-smatch_checkpoint_30_0.8210.pt
-model=$2 #facebook/mbart-large-50
+checkpoint=$1 
+model=$2
 
 
-LANGUAGES_names=("de" "es" "it" "zh" "en")
-dataset=/apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/test/test
+#LANGUAGES_names=("de" "es" "it" "zh" "en")
+LANGUAGES_names=("it" "zh" "en")
+dataset=${MPATH}/amr_2-four_translations/data/test/test
 
 for i in $(seq 1 1 ${#LANGUAGES_names[@]}); do
     name=${LANGUAGES_names[$i-1]}

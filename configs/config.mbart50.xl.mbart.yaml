@@ -56,6 +56,6 @@ seed: 19940117
 
 # <------------------
 # Data: replace DATA below with the root of your AMR 2/3 release folder
-train: /apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/training/mbart/*.txt 
-dev: /apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/dev/mbart/*.txt
-test: /apdcephfs/share_916081/jcykcai/nonono/amr_2-four_translations/amrs/test/*.txt
+train: ${MPATH}/amr_2-four_translations/amrs/training/mbart/*.txt 
+dev: ${MPATH}/amr_2-four_translations/amrs/dev/mbart/*.txt
+test: ${MPATH}/amr_2-four_translations/amrs/test/*.txt
