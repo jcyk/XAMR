@@ -7,3 +7,7 @@ sacrebleu
 smatch
 transformers==4.4.2
 PyYAML>=5.1
+jsonlines
+sklearn
+scipy
+torch>=1.5.1
