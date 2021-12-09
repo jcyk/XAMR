@@ -15,14 +15,15 @@ The code has been tested on **Python 3.6**. All dependencies are listed in [requ
 
 ## Multilingual AMR Parsing with the Pretrained Model
 
+The pretrained model can be downloaded from [google drive]().
 
-The pretained model can be downloaed from [google drive]()
+See `scripts/work.sh` for evaluation.
 
 ## Train New Parsers
 
+coming soon
 
-
-##Acknowledgements
+## Acknowledgements
 
 This project is based on [SPRING](https://github.com/SapienzaNLP/spring).
 
