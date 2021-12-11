@@ -21,6 +21,8 @@ See `scripts/work.sh` for evaluation.
 
 ## Train New Parsers
 
+### Data Preparation
+follow the instructions in the readme in the `xlamr` folder
 coming soon
 
 ## Acknowledgements

@@ -56,6 +56,6 @@ seed: 19940117
 
 # <------------------
 # Data: replace DATA below with the root of your AMR 2/3 release folder
-train: ${MPATH}/abstract_meaning_representation_amr_2.0/data/amrs/split/training/*.txt
-dev: ${MPATH}/abstract_meaning_representation_amr_2.0/data/amrs/split/dev/*.txt
-test: ${MPATH}/abstract_meaning_representation_amr_2.0/data/amrs/split/test/*.txt
+train: xl-amr/data/AMR/amr_2.0/train.txt
+dev: xl-amr/data/AMR/amr_2.0/dev.txt
+test: xl-amr/data/AMR/amr_2.0/test.txt
