@@ -154,15 +154,7 @@ def instantiate_loader(
         glob_pattn = [glob_pattn]
     for gpattn in glob_pattn:
         paths += [Path(p) for p in glob(str(gpattn))]
-    
-    if zh == "ignore":
-        paths = [path for path in paths if not (str(path).endswith('zh.txt') or str(path).endswith('zh.pt'))]
-    elif zh == "opus":
-        paths = [path for path in paths if not ((str(path).endswith('zh.txt') or str(path).endswith('zh.pt')) and '.mass.' in str(path))] 
-    elif zh == "mass":
-        paths = [path for path in paths if not ((str(path).endswith('zh.txt') or str(path).endswith('zh.pt')) and '.opus.' in str(path))]
-    else:
-        raise TypeError
+
     paths.sort()
     if cached:
         return instantiate_loader_from_cached(paths, tokenizer, batch_size=batch_size, evaluation=evaluation, out=out, use_recategorization=use_recategorization, remove_longer_than=remove_longer_than, remove_wiki=remove_wiki, dereify=dereify, rank=rank, world_size=world_size, max_cached_samples=max_cached_samples, noise=noise) 

@@ -1,7 +1,7 @@
 PYTHONPATH=. python3 bin/train.py \
 --config configs/config.mbart50nmt.xl.opus.yaml \
---train "${MPATH}/europarl/noisy_training/*.pt" \
+--train 'xl-amr/data/AMR/amr_2.0/kd/*.pt' \
 --cache \
 --max_cached_samples 320000 \
---ROOT ${MPATH}/mbart50nmt/f3
+--ROOT ckpt/final
 

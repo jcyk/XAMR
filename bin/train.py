@@ -108,7 +108,7 @@ def do_train(local_rank, args, config, where_checkpoints):
         zh=args.zh,
         noise=args.noise,
     )
-
+    print ("load train")
     dev_gold_path = where_checkpoints / 'tmp-dev-gold.txt'
     dev_pred_path = where_checkpoints / 'tmp-dev-pred.txt'
     dev_loader = instantiate_loader(
@@ -389,7 +389,7 @@ def cache_check_data(args, config):
         noise=args.noise,
     )
 
-    train_loader.dataset.save_cached('train_en.pt')
+    train_loader.dataset.save_cached(args.make_cache)
 
 
     cnt = 0
@@ -429,9 +429,11 @@ if __name__ == '__main__':
     parser.add_argument('--ROOT', type=Path)
 
     # Our faster data loading by caching
+    parser.add_argument('--make_cache', type=str, default=None)
     parser.add_argument('--cache', action='store_true')
     parser.add_argument('--max_cached_samples', type=int, default=None)
     parser.add_argument('--zh', type=str, default='opus')
+    
     # our innovations
     parser.add_argument('--noise', type=float, default=0.)
     parser.add_argument('--kd', action='store_true')
@@ -468,8 +470,9 @@ if __name__ == '__main__':
     else:
         print ("no es or kd, my_model is turned off.")
         config['my_model'] = False
-
-    #cache_check_data(args, config)
+    
+    if args.make_cache is not None:
+        cache_check_data(args, config)
 
     root = args.ROOT
     root.mkdir(parents=True, exist_ok=True)

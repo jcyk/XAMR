@@ -15,19 +15,24 @@ The code has been tested on **Python 3.6**. All dependencies are listed in [requ
 
 ## Multilingual AMR Parsing with the Pretrained Model
 
-The pretrained model can be downloaded from [google drive]().
+The pretrained model can be downloaded from [Google Drive]().
 
 See `scripts/work.sh` for evaluation.
 
 ## Train New Parsers
 
 ### Data Preparation
-follow the instructions in the readme in the `xlamr` folder
-coming soon
+follow the instructions in the readme in the `xlamr` folder, or directly download it from [Google Dirve]().
+
+### Training
+
+loading the KD data can be time-consuming, to cache the data use `prepare.sh`.
+use `train.f3.sh` and `train.f4.sh` in the `scripts` folder.
+
 
 ## Acknowledgements
 
-This project is based on [SPRING](https://github.com/SapienzaNLP/spring).
+This project is based on [SPRING](https://github.com/SapienzaNLP/spring) and [xl-amr](https://github.com/SapienzaNLP/xl-amr).
 
 ## Contact
 
