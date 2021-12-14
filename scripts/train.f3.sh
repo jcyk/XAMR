@@ -3,5 +3,5 @@ PYTHONPATH=. python3 bin/train.py \
 --train 'xl-amr/data/AMR/amr_2.0/kd/*.pt' \
 --cache \
 --max_cached_samples 320000 \
---ROOT ckpt/final
+--ROOT ckpt/f3
 
