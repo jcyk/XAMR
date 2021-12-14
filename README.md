@@ -26,8 +26,10 @@ follow the instructions in the readme in the `xlamr` folder, or directly downloa
 
 ### Training
 
-loading the KD data can be time-consuming, to cache the data use `prepare.sh`.
+
 use `train.f3.sh` and `train.f4.sh` in the `scripts` folder.
+
+(loading the KD data can be very time-consuming, use `prepare.sh` to cache the data)
 
 
 ## Acknowledgements
