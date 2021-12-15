@@ -3,11 +3,13 @@ Code for our EMNLP 2021 (findings) paper [Multilingual AMR Parsing with Noisy Kn
 
 We develop **one** multilingual AMR parser to parse **five** different languages including German (DE), Spanish (ES), Italian (IS), Chinese (ZH), and English (EN).
 
-The parsing performance of our best parser is shown below.
+The parsing performance of our best parser [(Google Drive)](https://drive.google.com/file/d/1trLOWMAjKe4VpOExfB6AJyh7-qhxItEs/view?usp=sharing) is shown below.
 
 | Language   | DE   | ES   | IT   | ZH   | EN   |
 | :--------- | ---- | ---- | ---- | ---- | ---- |
-| Smatch (%) | 73.1 | 75.9 | 75.4 | 61.9 | 83.9 |
+| Smatch (%) | 73.1 | 76.2 | 75.8 | 62.2 | 84.2 |
+
+(some numbers are ***higher*** than those reported in our paper due to different runs)
 
 ## Requirements
 
@@ -15,7 +17,7 @@ The code has been tested on **Python 3.6**. All dependencies are listed in [requ
 
 ## Multilingual AMR Parsing with the Pretrained Model
 
-The pretrained model can be downloaded from [Google Drive]().
+The pretrained model can be downloaded from [Google Drive](https://drive.google.com/file/d/1trLOWMAjKe4VpOExfB6AJyh7-qhxItEs/view?usp=sharing).
 
 See `scripts/work.sh` for evaluation.
 
