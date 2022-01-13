@@ -9,10 +9,11 @@ from spring_amr.penman import encode
 
 from spring_amr.linearization import AMRTokens
 
-BACKOFF = penman.Graph([
-    penman.Triple('d2', ':instance', 'dog'),
-    penman.Triple('b1', ':instance', 'bark-01'),
-    penman.Triple('b1', ':ARG0', 'd2'),])
+def BACKOFF():
+    return penman.Graph([
+    	penman.Triple('d2', ':instance', 'dog'),
+    	penman.Triple('b1', ':instance', 'bark-01'),
+    	penman.Triple('b1', ':ARG0', 'd2'),])
 
 def token_processing(tok):
     if tok is None:

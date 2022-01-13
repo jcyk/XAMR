@@ -205,7 +205,7 @@ class AMRBartTokenizer(BartTokenizer):
         except Exception as e:
             # print('Decoding failure:', file=sys.stderr)
             # print(e, file=sys.stderr)
-            return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (None, None)
+            return postprocessing.BACKOFF(), postprocessing.ParsedStatus.BACKOFF, (None, None)
         if self.use_pointer_tokens:
             nodes, backreferences = postprocessing.restore_backreferences_from_pointers(nodes)
         try:
@@ -215,7 +215,7 @@ class AMRBartTokenizer(BartTokenizer):
             # print(nodes, file=sys.stderr)
             # print(backreferences, file=sys.stderr)
             # print(e, file=sys.stderr)
-            return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (None, None)
+            return postprocessing.BACKOFF(), postprocessing.ParsedStatus.BACKOFF, (None, None)
         try:
             graph, status = postprocessing.connect_graph_if_not_connected(graph)
             # if status == postprocessing.ParsedStatus.BACKOFF:
@@ -230,7 +230,7 @@ class AMRBartTokenizer(BartTokenizer):
             # print(nodes, file=sys.stderr)
             # print(backreferences, file=sys.stderr)
             # print(graph_, file=sys.stderr)
-            return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (nodes, backreferences)
+            return postprocessing.BACKOFF(), postprocessing.ParsedStatus.BACKOFF, (nodes, backreferences)
 
 class PENMANBartTokenizer(AMRBartTokenizer):
 
@@ -618,7 +618,7 @@ class PENMANBartTokenizer(AMRBartTokenizer):
         except Exception as e:
             #print('Decoding failure:', file=sys.stderr)
             #print(e, file=sys.stderr)
-            return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (None, None)
+            return postprocessing.BACKOFF(), postprocessing.ParsedStatus.BACKOFF, (None, None)
         try:
             graph_ = graph = self._fix_and_make_graph(nodes)
             if self.collapse_name_ops:
@@ -628,7 +628,7 @@ class PENMANBartTokenizer(AMRBartTokenizer):
             #print(nodes, file=sys.stderr)
             #print(backreferences, file=sys.stderr)
             #print(e, file=sys.stderr)
-            return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (None, None)
+            return postprocessing.BACKOFF(), postprocessing.ParsedStatus.BACKOFF, (None, None)
         try:
             graph, status = postprocessing.connect_graph_if_not_connected(graph)
             # if status == postprocessing.ParsedStatus.BACKOFF:
@@ -643,4 +643,4 @@ class PENMANBartTokenizer(AMRBartTokenizer):
             # print(nodes, file=sys.stderr)
             # print(backreferences, file=sys.stderr)
             # print(graph_, file=sys.stderr)
-            return postprocessing.BACKOFF, postprocessing.ParsedStatus.BACKOFF, (nodes_, backreferences)
+            return postprocessing.BACKOFF(), postprocessing.ParsedStatus.BACKOFF, (nodes_, backreferences)
