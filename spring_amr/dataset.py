@@ -69,6 +69,7 @@ class AMRDataset(Dataset):
             graphs = graphs[rank::world_size]
             discarded = 0
             is_train = not evaluation
+            too_long = 0
             for g in tqdm.tqdm(graphs): 
                 l, e = self.tokenizer.linearize(g)
                 l = torch.LongTensor(l)
@@ -83,7 +84,10 @@ class AMRDataset(Dataset):
                     logger.warning('bad training instance len(in):{}/len(out):{}'.format(x.size(0), len(l)))
                     discarded += 1
                     continue
-                
+                #if x.size(0) > 128:
+                #    x[127] = x[-1]
+                #    x = x[:128]
+                #    too_long += 1
                 #####
                 token_en = g.metadata.get('tok-en', None)
                 if token_en and g.metadata['snt_lang'] != "en_XX":
@@ -101,7 +105,7 @@ class AMRDataset(Dataset):
                 self.graphs.append(g)
                 self.linearized.append(l)
                 self.linearized_extra.append(e)
-            logger.info('the number of instances {}, discarded {}'.format(len(self.sentences), discarded))
+            logger.info('the number of instances {}, discarded {}, too long {}'.format(len(self.sentences), discarded, too_long))
         else: 
             for path in paths:
                 data = torch.load(path)

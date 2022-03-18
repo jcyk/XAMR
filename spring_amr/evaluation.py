@@ -76,7 +76,7 @@ def predict_amrs(
     total = len(loader.dataset)
     model.eval()
 
-    is_bart = isinstance(tokenizer, AMRBartTokenizer) or isinstance(tokenizer, PENMANBartTokenizer) 
+    is_bart = isinstance(tokenizer, AMRBartTokenizer) or isinstance(tokenizer, PENMANBartTokenizer)
     if tokens is None:
         ids = []
         tokens = []

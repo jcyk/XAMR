@@ -32,6 +32,7 @@ import ignite.distributed as idist
 from ignite.utils import setup_logger, manual_seed
 
 import logging
+import random
 logging.getLogger("penman").setLevel(logging.ERROR)
 
 def do_train(local_rank, args, config, where_checkpoints):
@@ -66,8 +67,12 @@ def do_train(local_rank, args, config, where_checkpoints):
     if checkpoint is not None:
         logger.info(f'Checkpoint restored ({checkpoint})!')
 
+    if args.fix_encoder:
+        for x, y in model.named_parameters():
+            if 'model.encoder' in x:
+                y.requires_grad = False
+ 
     model = idist.auto_model(model)
-
     if args.kd:
         teacher, _ = instantiate_model_and_tokenizer(
             config['model'],
@@ -83,8 +88,9 @@ def do_train(local_rank, args, config, where_checkpoints):
         )
         teacher = idist.auto_model(teacher)
     
+
     optimizer = RAdam(
-        model.parameters(),
+        [y for x, y in model.named_parameters() if 'model.encoder' not in x],
         lr=config['learning_rate'],
         weight_decay=config['weight_decay'])
 
@@ -105,7 +111,6 @@ def do_train(local_rank, args, config, where_checkpoints):
         dereify=config['dereify'],
         cached=args.cache,
         max_cached_samples=args.max_cached_samples,
-        zh=args.zh,
         noise=args.noise,
     )
     print ("load train")
@@ -119,7 +124,6 @@ def do_train(local_rank, args, config, where_checkpoints):
         use_recategorization=config['use_recategorization'],
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
-        zh=args.zh,
     )
 
     dev_gen_loader = instantiate_loader(
@@ -130,7 +134,6 @@ def do_train(local_rank, args, config, where_checkpoints):
         use_recategorization=config['use_recategorization'],
         rank=rank,
         world_size=world_size,
-        zh=args.zh,
     )
     dev_gen_loader.device = device
 
@@ -302,7 +305,6 @@ def do_train(local_rank, args, config, where_checkpoints):
                         use_recategorization=config['use_recategorization'],
                         rank=rank,
                         world_size=world_size,
-                        zh=args.zh,
                     )
                     test_gen_loader.device = device
                     smatch = smatch_eval(test_gen_loader)
@@ -385,7 +387,6 @@ def cache_check_data(args, config):
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
         cached=args.cache,
-        zh=args.zh,
         noise=args.noise,
     )
 
@@ -432,9 +433,9 @@ if __name__ == '__main__':
     parser.add_argument('--make_cache', type=str, default=None)
     parser.add_argument('--cache', action='store_true')
     parser.add_argument('--max_cached_samples', type=int, default=None)
-    parser.add_argument('--zh', type=str, default='opus')
     
     # our innovations
+    parser.add_argument('--fix_encoder', action='store_true')
     parser.add_argument('--noise', type=float, default=0.)
     parser.add_argument('--kd', action='store_true')
     parser.add_argument('--kd_start_after', type=int, default=0)
@@ -479,5 +480,5 @@ if __name__ == '__main__':
     where_checkpoints = root/str(len(list(root.iterdir())))
     where_checkpoints.mkdir()
 
-    with idist.Parallel(backend="nccl", nproc_per_node=config['nproc_per_node']) as parallel:
+    with idist.Parallel(backend="nccl", nproc_per_node=config['nproc_per_node'], master_port=random.randint(55555, 88888)) as parallel:
         parallel.run(do_train, args, config, where_checkpoints)
