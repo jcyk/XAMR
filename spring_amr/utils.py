@@ -146,7 +146,6 @@ def instantiate_loader(
         world_size=1,
         cached=False,
         max_cached_samples=None,
-        zh='ignore',
         noise=0.,
 ):
     paths = []

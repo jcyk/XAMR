@@ -48,7 +48,6 @@ def run(local_rank, args):
         use_recategorization=args.use_recategorization,
         rank=rank,
         world_size=world_size,
-        zh=args.zh,
     )
     loader.device = device
 
@@ -116,7 +115,7 @@ if __name__ == '__main__':
     parser.add_argument('--restore-name-ops', action='store_true')
     parser.add_argument('--return-all', action='store_true')
     parser.add_argument('--nproc-per-node', type=int, default=2)
-    parser.add_argument('--zh', type=str, default='opus')
+
     args = parser.parse_args()
     with idist.Parallel(backend="nccl", nproc_per_node=args.nproc_per_node, master_port=8888) as parallel:
         parallel.run(run, args)

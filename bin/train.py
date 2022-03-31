@@ -67,7 +67,6 @@ def do_train(local_rank, args, config, where_checkpoints):
         logger.info(f'Checkpoint restored ({checkpoint})!')
 
     model = idist.auto_model(model)
-
     if args.kd:
         teacher, _ = instantiate_model_and_tokenizer(
             config['model'],
@@ -83,8 +82,18 @@ def do_train(local_rank, args, config, where_checkpoints):
         )
         teacher = idist.auto_model(teacher)
     
+    if args.fix_encoder:
+        trainable_parameters = model.parameters()
+    else:
+        trainable_parameters = []
+        for x, y in model.named_parameters():
+            if 'model.encoder' in x:
+                x.requires_grad = False
+            else:
+                trainable_parameters.append(y)
+
     optimizer = RAdam(
-        model.parameters(),
+        trainable_parameters,
         lr=config['learning_rate'],
         weight_decay=config['weight_decay'])
 
@@ -105,7 +114,6 @@ def do_train(local_rank, args, config, where_checkpoints):
         dereify=config['dereify'],
         cached=args.cache,
         max_cached_samples=args.max_cached_samples,
-        zh=args.zh,
         noise=args.noise,
     )
     print ("load train")
@@ -119,7 +127,6 @@ def do_train(local_rank, args, config, where_checkpoints):
         use_recategorization=config['use_recategorization'],
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
-        zh=args.zh,
     )
 
     dev_gen_loader = instantiate_loader(
@@ -130,7 +137,6 @@ def do_train(local_rank, args, config, where_checkpoints):
         use_recategorization=config['use_recategorization'],
         rank=rank,
         world_size=world_size,
-        zh=args.zh,
     )
     dev_gen_loader.device = device
 
@@ -302,7 +308,6 @@ def do_train(local_rank, args, config, where_checkpoints):
                         use_recategorization=config['use_recategorization'],
                         rank=rank,
                         world_size=world_size,
-                        zh=args.zh,
                     )
                     test_gen_loader.device = device
                     smatch = smatch_eval(test_gen_loader)
@@ -385,7 +390,6 @@ def cache_check_data(args, config):
         remove_wiki=config['remove_wiki'],
         dereify=config['dereify'],
         cached=args.cache,
-        zh=args.zh,
         noise=args.noise,
     )
 
@@ -432,9 +436,9 @@ if __name__ == '__main__':
     parser.add_argument('--make_cache', type=str, default=None)
     parser.add_argument('--cache', action='store_true')
     parser.add_argument('--max_cached_samples', type=int, default=None)
-    parser.add_argument('--zh', type=str, default='opus')
     
     # our innovations
+    parser.add_argument('--fix_encoder', action='store_true')
     parser.add_argument('--noise', type=float, default=0.)
     parser.add_argument('--kd', action='store_true')
     parser.add_argument('--kd_start_after', type=int, default=0)
