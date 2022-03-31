@@ -21,10 +21,24 @@ batch_size = int(sys.argv[2])
 tokenizer, model = get_mt_model(lang)
 idx = 0
 print ("start!")
+
+sentences = []
+for line in open(f'{lang}.txt').readlines():
+    if len(line.strip().split()) > 128:
+        continue
+    else:
+        sentences.append(line.strip())
+
+import random
+random.seed(199401170033)
+random.shuffle(sentences)
+
+sentences = sentences[:320000]
+
 with open(f'kd_{lang}_en.txt', "w") as fo:
     batch = []
-    for x in tqdm.tqdm(open(f'{lang}.txt').readlines()[207486:]):
-        batch.append(x.strip())
+    for x in tqdm.tqdm(sentences):
+        batch.append(x)
         if len(batch) == batch_size:
             translations = translate(tokenizer, model, batch)
             for source, translation in zip(batch, translations):
