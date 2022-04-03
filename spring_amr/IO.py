@@ -8,7 +8,8 @@ LANGUAGE_CODES = ["ar_AR", "cs_CZ", "de_DE", "en_XX", "es_XX", "et_EE", "fi_FI",
 LANGUAGE_CODES_MAP={}
 for x in LANGUAGE_CODES:
     LANGUAGE_CODES_MAP[x[:2]] = x
- 
+    LANGUAGE_CODES_MAP[x] = x
+
 def read_raw_amr_data(
         paths: List[Union[str, Path]],
         use_recategorization=False,

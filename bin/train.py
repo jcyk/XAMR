@@ -32,6 +32,7 @@ import ignite.distributed as idist
 from ignite.utils import setup_logger, manual_seed
 
 import logging
+import random
 logging.getLogger("penman").setLevel(logging.ERROR)
 
 def do_train(local_rank, args, config, where_checkpoints):
@@ -66,6 +67,11 @@ def do_train(local_rank, args, config, where_checkpoints):
     if checkpoint is not None:
         logger.info(f'Checkpoint restored ({checkpoint})!')
 
+    if args.fix_encoder:
+        for x, y in model.named_parameters():
+            if 'model.encoder' in x:
+                y.requires_grad = False
+ 
     model = idist.auto_model(model)
     if args.kd:
         teacher, _ = instantiate_model_and_tokenizer(
@@ -82,18 +88,9 @@ def do_train(local_rank, args, config, where_checkpoints):
         )
         teacher = idist.auto_model(teacher)
     
-    if args.fix_encoder:
-        trainable_parameters = model.parameters()
-    else:
-        trainable_parameters = []
-        for x, y in model.named_parameters():
-            if 'model.encoder' in x:
-                x.requires_grad = False
-            else:
-                trainable_parameters.append(y)
 
     optimizer = RAdam(
-        trainable_parameters,
+        [y for x, y in model.named_parameters() if 'model.encoder' not in x],
         lr=config['learning_rate'],
         weight_decay=config['weight_decay'])
 
@@ -483,5 +480,5 @@ if __name__ == '__main__':
     where_checkpoints = root/str(len(list(root.iterdir())))
     where_checkpoints.mkdir()
 
-    with idist.Parallel(backend="nccl", nproc_per_node=config['nproc_per_node']) as parallel:
+    with idist.Parallel(backend="nccl", nproc_per_node=config['nproc_per_node'], master_port=random.randint(55555, 88888)) as parallel:
         parallel.run(do_train, args, config, where_checkpoints)

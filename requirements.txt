@@ -10,4 +10,4 @@ PyYAML>=5.1
 jsonlines
 sklearn
 scipy
-torch>=1.5.1
+torch>=1.6.0
