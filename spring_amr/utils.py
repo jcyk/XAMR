@@ -45,6 +45,7 @@ def instantiate_model_and_tokenizer(
     config.dropout = dropout
     config.attention_dropout = attention_dropout
     config.return_dict = False
+    config.forced_bos_token_id = None
 
     if penman_linearization:
         tokenizer = PENMANTokenizer.from_pretrained(
