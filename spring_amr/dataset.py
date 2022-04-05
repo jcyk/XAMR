@@ -228,7 +228,7 @@ class AMRDatasetTokenBatcherAndLoader:
 
         while ids:
             idx = ids.pop()
-            size = len(self.dataset.linearized[idx])
+            size = max(lengths[idx], len(self.dataset.linearized[idx]))
             cand_batch_ntokens = max(size, batch_longest) * (batch_nexamps + 1)
             if cand_batch_ntokens > self.batch_size and batch_ids:
                 yield discharge()

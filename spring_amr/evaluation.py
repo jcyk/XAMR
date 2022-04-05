@@ -41,7 +41,7 @@ def _generate(is_bart, model, x, beam_size):
         return out
     except RuntimeError as e:
         if "out of memory" in str(e):
-            msg = "OOM: input_ids {}".format(x['input_ids'].size())
+            msg = "OOM: input_ids {} {}".format(x['input_ids'].size(), x['input_ids'].device)
             if x['input_ids'].size(0) >= 2:
                 return msg
         raise e

@@ -10,4 +10,4 @@ PyYAML>=5.1
 jsonlines
 sklearn
 scipy
-torch>=1.6.0
+#torch==1.6.0+cu101 -f https://download.pytorch.org/whl/torch_stable.html

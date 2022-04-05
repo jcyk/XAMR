@@ -15,7 +15,7 @@ PYTHONPATH=. python3 bin/predict_amrs.py \
         --gold-path  ${lang}-dev-gold.txt \
         --pred-path  ${lang}-dev-pred.txt \
         --beam-size 5 \
-        --batch-size 5000 \
+        --batch-size 3000 \
         --penman-linearization \
         --use-pointer-tokens
 done

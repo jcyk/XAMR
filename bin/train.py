@@ -397,7 +397,7 @@ def cache_check_data(args, config):
     mx_io = 0
     mx_oi = 0
     for x, y, extra in train_loader:
-        print (tokenizer.convert_ids_to_tokens(x["input_ids"][-1]))
+        #print (tokenizer.convert_ids_to_tokens(x["input_ids"][-1]))
         #print (tokenizer.convert_ids_to_tokens(x["input_ids_en"][-1]))
         #print (extra['sentences'][-1])
         #print (x["attention_mask"])
