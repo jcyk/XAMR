@@ -21,6 +21,56 @@ The pretrained model can be downloaded from [Google Drive](https://drive.google.
 
 See `scripts/work.sh` for evaluation.
 
+To parse your own data, use the following command:
+```bash
+checkpoint=ckpt/best.pt # this points to the pretrained model you have downloaded
+dataset=tmp.txt # this points to the data you want to parse (see detailed explanation below)
+
+PYTHONPATH=. python3 bin/predict_amrs.py \
+   --model facebook/mbart-large-50-many-to-many-mmt \
+   --checkpoint ${checkpoint} \
+   --dataset ${dataset} \
+   --nproc-per-node 4 \
+   --gold-path tmp-gold.txt \
+   --pred-path tmp-pred.txt \
+   --beam-size 4 \
+   --batch-size 5000 \
+   --penman-linearization \
+   --use-pointer-tokens
+```
+the `tmp.txt` file looks like below:
+```
+# ::id 0
+# ::snt Resolutely support the thread starter! I compose a poem in reply:
+# ::snt_lang en
+(z0 / and)
+
+# ::id 1
+# ::snt Ich unterstütze denjenigen, der diesen Thread gestartet hat, ganz deutlich! Ich habe ein Gedicht als Antwort verfasst:
+# ::snt_lang de
+(z0 / and)
+
+# ::id 2
+# ::snt ¡Respalde firmemente el inicio del hilo! Escribo un poema en respuesta:
+# ::snt_lang es
+(z0 / and)
+
+# ::id 3
+# ::snt Sostenete assolutamente chi ha avviato questo thread! Scrivo una poesia come risposta:
+# ::snt_lang it
+(z0 / and)
+
+# ::id 4
+# ::snt 坚决支持楼主！我赋诗一首，以表寸心：
+# ::snt_lang zh
+(z0 / and)
+```
+As seen, each block has four fields:
+- id: the sentence id
+- snt: the input sentence
+- snt_lang: the langauge of the input sentence (choosing from en, de, es, it, zh, ...)
+- (z0/ and): this is just a placeholder
+
 ## Train New Parsers
 
 ### Data Preparation
